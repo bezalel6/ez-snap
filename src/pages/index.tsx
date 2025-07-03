@@ -457,6 +457,8 @@ export default function Home() {
           <Carousel
             images={carouselImages()}
             uid={socket.currentUserUid ?? "anonymous"}
+            selectedImage={selectedImage}
+            onImageClick={(image) => setSelectedImage(image)}
           />
         )}
       </Box>
@@ -464,20 +466,34 @@ export default function Home() {
   );
 }
 
-function CarouselImage({ image, uid }: { image: CapturedImage; uid: string }) {
+function CarouselImage({
+  image,
+  uid,
+  selectedImage,
+  onImageClick,
+}: {
+  image: CapturedImage;
+  uid: string;
+  selectedImage: CapturedImage | null;
+  onImageClick: (image: CapturedImage) => void;
+}) {
   const isOwnImage = uid === image.uid;
+  const isSelected = selectedImage?.id === image.id;
 
   return (
     <Card
+      onClick={() => onImageClick(image)}
       sx={{
         minWidth: 280,
         height: 200,
         position: "relative",
         cursor: "pointer",
         transition: "all 0.3s ease",
-        border: isOwnImage
-          ? "2px solid gold"
-          : "1px solid rgba(255,255,255,0.1)",
+        border: isSelected
+          ? "3px solid #90caf9"
+          : isOwnImage
+            ? "2px solid gold"
+            : "1px solid rgba(255,255,255,0.1)",
         "&:hover": {
           transform: "scale(1.02)",
           boxShadow: 3,
@@ -492,7 +508,22 @@ function CarouselImage({ image, uid }: { image: CapturedImage; uid: string }) {
           objectFit: "cover",
         }}
       />
-      {isOwnImage && (
+      {isSelected && (
+        <Chip
+          label="Selected"
+          size="small"
+          color="primary"
+          sx={{
+            position: "absolute",
+            top: 8,
+            left: 8,
+            bgcolor: "#90caf9",
+            color: "black",
+            fontWeight: "bold",
+          }}
+        />
+      )}
+      {isOwnImage && !isSelected && (
         <Chip
           label="Your Photo"
           size="small"
@@ -525,7 +556,17 @@ function CarouselImage({ image, uid }: { image: CapturedImage; uid: string }) {
   );
 }
 
-function Carousel({ images, uid }: { images: CapturedImage[]; uid: string }) {
+function Carousel({
+  images,
+  uid,
+  selectedImage,
+  onImageClick,
+}: {
+  images: CapturedImage[];
+  uid: string;
+  selectedImage: CapturedImage | null;
+  onImageClick: (image: CapturedImage) => void;
+}) {
   const theme = useTheme();
 
   if (images.length === 0) {
@@ -574,7 +615,13 @@ function Carousel({ images, uid }: { images: CapturedImage[]; uid: string }) {
           }}
         >
           {images.map((img) => (
-            <CarouselImage image={img} uid={uid} key={img.id} />
+            <CarouselImage
+              image={img}
+              uid={uid}
+              key={img.id}
+              selectedImage={selectedImage}
+              onImageClick={onImageClick}
+            />
           ))}
         </Box>
 
