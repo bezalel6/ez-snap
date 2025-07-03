@@ -1,5 +1,5 @@
 /**
- * QR Tracker Configuration
+ * AprilTag Tracker Configuration
  * 
  * The rotation of the tracked surface is not predictable, and thus it would be silly 
  * to try to assign directions to specific trackers. Trackers are labeled according 
@@ -7,38 +7,48 @@
  *              
  *    ┌─────────────┬─────────────┐
  *    │             │             │
- *    │    QR_01    │    QR_02    │
+ *    │   TAG_01    │   TAG_02    │
  *    │             │             │
  *    │             │             │
  *    ├─────────────┼─────────────┤
  *    │             │             │
- *    │    QR_04    │    QR_03    │
+ *    │   TAG_04    │   TAG_03    │
  *    │             │             │
  *    │             │             │
  *    └─────────────┴─────────────┘
  * 
  * IMPORTANT: These trackers have NO inherent directional meaning!
  * The grid can be rotated arbitrarily. Only the relative positions matter.
- * QR_01, QR_02, QR_03, QR_04 maintain their grid pattern regardless of orientation.
+ * TAG_01, TAG_02, TAG_03, TAG_04 maintain their grid pattern regardless of orientation.
  */
 
 export enum TrackerID {
-    QR_01 = "QR_01",
-    QR_02 = "QR_02", 
-    QR_03 = "QR_03",
-    QR_04 = "QR_04",
+    TAG_01 = "1",   // AprilTag ID 1
+    TAG_02 = "2",   // AprilTag ID 2
+    TAG_03 = "3",   // AprilTag ID 3
+    TAG_04 = "4",   // AprilTag ID 4
 }
 
-export interface QRCodeLocation {
-    topLeftCorner: { x: number; y: number };
-    topRightCorner: { x: number; y: number };
-    bottomLeftCorner: { x: number; y: number };
-    bottomRightCorner: { x: number; y: number };
+export interface AprilTagCorners {
+    x: number;
+    y: number;
+}
+
+export interface AprilTagDetection {
+    id: number;
+    size: number;
+    corners: AprilTagCorners[];
+    center: { x: number; y: number };
+    pose?: {
+        R: number[][];
+        t: number[];
+        e: number;
+    };
 }
 
 export interface DetectedTracker {
     id: TrackerID;
-    location: QRCodeLocation;
+    detection: AprilTagDetection;
     center: { x: number; y: number };
     dims: {
         width: number;
@@ -60,8 +70,10 @@ export interface AlignmentStatus {
 export const TRACKER_CONFIG = {
     trackers: Object.values(TrackerID) as TrackerID[],
     size: 120,
+    tagSize: 0.05, // 5cm physical size of tags
     staleThreshold: 2000, // 2 seconds
     cleanupThreshold: 3000, // 3 seconds
+    family: "tag36h11", // AprilTag family
 } as const;
 
 // Standard A4 dimensions at 72 DPI
@@ -73,37 +85,44 @@ export const A4_DIMENSIONS = {
 // Grid utilities for working with tracker positions
 export const GridUtils = {
     /**
-     * Calculate center point from QR code location corners
+     * Calculate center point from AprilTag detection corners
      */
-    calculateCenter(location: QRCodeLocation): { x: number; y: number } {
-        const { topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner } = location;
+    calculateCenter(corners: AprilTagCorners[]): { x: number; y: number } {
+        const sumX = corners.reduce((sum, corner) => sum + corner.x, 0);
+        const sumY = corners.reduce((sum, corner) => sum + corner.y, 0);
         return {
-            x: (topLeftCorner.x + topRightCorner.x + bottomLeftCorner.x + bottomRightCorner.x) / 4,
-            y: (topLeftCorner.y + topRightCorner.y + bottomLeftCorner.y + bottomRightCorner.y) / 4,
+            x: sumX / corners.length,
+            y: sumY / corners.length,
         };
     },
 
     /**
-     * Calculate dimensions from QR code location corners
+     * Calculate dimensions from AprilTag detection corners
      */
-    calculateDimensions(location: QRCodeLocation): { width: number; height: number } {
-        const { topLeftCorner, topRightCorner, bottomLeftCorner } = location;
+    calculateDimensions(corners: AprilTagCorners[]): { width: number; height: number } {
+        if (corners.length < 4) return { width: 0, height: 0 };
+        
+        // Calculate width as distance between first two corners
         const width = Math.sqrt(
-            Math.pow(topRightCorner.x - topLeftCorner.x, 2) +
-            Math.pow(topRightCorner.y - topLeftCorner.y, 2)
+            Math.pow(corners[1]!.x - corners[0]!.x, 2) +
+            Math.pow(corners[1]!.y - corners[0]!.y, 2)
         );
+        
+        // Calculate height as distance between first and last corners
         const height = Math.sqrt(
-            Math.pow(bottomLeftCorner.x - topLeftCorner.x, 2) +
-            Math.pow(bottomLeftCorner.y - topLeftCorner.y, 2)
+            Math.pow(corners[3]!.x - corners[0]!.x, 2) +
+            Math.pow(corners[3]!.y - corners[0]!.y, 2)
         );
+        
         return { width, height };
     },
 
     /**
-     * Identify tracker from QR code data
+     * Identify tracker from AprilTag ID
      */
-    identifyTracker(data: string): TrackerID | null {
-        return Object.values(TrackerID).includes(data as TrackerID) ? (data as TrackerID) : null;
+    identifyTracker(tagId: number): TrackerID | null {
+        const idStr = tagId.toString();
+        return Object.values(TrackerID).includes(idStr as TrackerID) ? (idStr as TrackerID) : null;
     },
 
     /**
@@ -142,14 +161,17 @@ export const GridUtils = {
     },
 
     /**
-     * Create a detected tracker from QR code detection
+     * Create a detected tracker from AprilTag detection
      */
-    createDetectedTracker(id: TrackerID, location: QRCodeLocation): DetectedTracker {
+    createDetectedTracker(id: TrackerID, detection: AprilTagDetection): DetectedTracker {
+        const center = this.calculateCenter(detection.corners);
+        const dims = this.calculateDimensions(detection.corners);
+        
         return {
             id,
-            location,
-            center: this.calculateCenter(location),
-            dims: this.calculateDimensions(location),
+            detection,
+            center,
+            dims,
             lastSeen: Date.now(),
         };
     },
