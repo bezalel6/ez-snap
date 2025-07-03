@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Box } from "@mui/material";
-import jsQR from "jsqr";
 import {
   TrackerID,
   GridUtils,
@@ -10,8 +9,9 @@ import {
 import type {
   DetectedTracker,
   AlignmentStatus,
-  QRCodeLocation,
+  AprilTagDetection,
 } from "@/utils/config";
+import { getAprilTagManager } from "@/utils/apriltag";
 
 interface QRTrackerOverlayProps {
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -99,8 +99,13 @@ export default function QRTrackerOverlay({
         y: referenceTracker.center.y - canvasCenter.y,
       };
 
-      // Simple rotation calculation (could be enhanced with more complex geometry)
-      const rotation = 0; // Simplified for now
+      // Calculate rotation from pose data if available
+      let rotation = 0;
+      if (referenceTracker.detection.pose?.R) {
+        // Extract rotation from rotation matrix (simplified)
+        const R = referenceTracker.detection.pose.R;
+        rotation = Math.atan2(R[1]![0]!, R[0]![0]!) * (180 / Math.PI);
+      }
 
       // Determine if aligned (within thresholds)
       const isAligned =
@@ -124,7 +129,7 @@ export default function QRTrackerOverlay({
     [targetDimensions],
   );
 
-  const scanForQRCodes = useCallback(() => {
+  const scanForAprilTags = useCallback(async () => {
     if (!isActive || !videoRef.current || !canvasRef.current) return;
 
     const video = videoRef.current;
@@ -138,32 +143,43 @@ export default function QRTrackerOverlay({
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    try {
+      const aprilTagManager = getAprilTagManager();
+      const detections = await aprilTagManager.detect(canvas);
 
-    if (code && code.location) {
-      const trackerId = GridUtils.identifyTracker(code.data);
-      if (trackerId) {
-        const newTracker = GridUtils.createDetectedTracker(
-          trackerId,
-          code.location,
-        );
-
+      if (detections && detections.length > 0) {
         setDetectedTrackers((prev) => {
-          // Remove any existing tracker with the same ID
-          const filtered = prev.filter((t) => t.id !== trackerId);
-          return [...filtered, newTracker];
+          const newTrackers: DetectedTracker[] = [];
+
+          detections.forEach((detection: AprilTagDetection) => {
+            const trackerId = GridUtils.identifyTracker(detection.id);
+            if (trackerId) {
+              const newTracker = GridUtils.createDetectedTracker(
+                trackerId,
+                detection,
+              );
+              newTrackers.push(newTracker);
+            }
+          });
+
+          // Merge with existing trackers, removing duplicates
+          const filtered = prev.filter(
+            (t) => !newTrackers.some((nt) => nt.id === t.id),
+          );
+          return [...filtered, ...newTrackers];
         });
       }
-    }
 
-    // Clean up old detections
-    setDetectedTrackers((prev) => {
-      const currentTime = Date.now();
-      return prev.filter(
-        (t) => currentTime - t.lastSeen < TRACKER_CONFIG.cleanupThreshold,
-      );
-    });
+      // Clean up old detections
+      setDetectedTrackers((prev) => {
+        const currentTime = Date.now();
+        return prev.filter(
+          (t) => currentTime - t.lastSeen < TRACKER_CONFIG.cleanupThreshold,
+        );
+      });
+    } catch (error) {
+      console.error("AprilTag detection error:", error);
+    }
   }, [isActive, videoRef]);
 
   useEffect(() => {
@@ -172,9 +188,9 @@ export default function QRTrackerOverlay({
       return;
     }
 
-    const interval = setInterval(scanForQRCodes, 100); // Scan 10 times per second
+    const interval = setInterval(scanForAprilTags, 100); // Scan 10 times per second
     return () => clearInterval(interval);
-  }, [isActive, scanForQRCodes]);
+  }, [isActive, scanForAprilTags]);
 
   useEffect(() => {
     const newAlignment = calculateAlignment(detectedTrackers);
@@ -194,21 +210,21 @@ export default function QRTrackerOverlay({
     const marginX = isLandscape ? 0.15 : 0.18;
     const marginY = isLandscape ? 0.18 : 0.15;
 
-    // Grid positions for QR trackers (following the cartesian grid pattern)
+    // Grid positions for AprilTag trackers (following the cartesian grid pattern)
     const gridPositions = {
-      [TrackerID.QR_01]: {
+      [TrackerID.TAG_01]: {
         x: canvasWidth * marginX,
         y: canvasHeight * marginY,
       },
-      [TrackerID.QR_02]: {
+      [TrackerID.TAG_02]: {
         x: canvasWidth * (1 - marginX),
         y: canvasHeight * marginY,
       },
-      [TrackerID.QR_03]: {
+      [TrackerID.TAG_03]: {
         x: canvasWidth * (1 - marginX),
         y: canvasHeight * (1 - marginY),
       },
-      [TrackerID.QR_04]: {
+      [TrackerID.TAG_04]: {
         x: canvasWidth * marginX,
         y: canvasHeight * (1 - marginY),
       },
@@ -494,29 +510,9 @@ export default function QRTrackerOverlay({
                 animation: "pulse 1s infinite",
               }}
             >
-              ⚠ Trackers moved: {alignmentStatus.staleTrackers.join(", ")}
+              ⚠ Tags moved: {alignmentStatus.staleTrackers.join(", ")}
             </Box>
           ) : alignmentStatus.missingTrackers.length > 0 ? (
-            <Box
-              sx={{
-                bgcolor: "rgba(255, 152, 0, 0.9)",
-                color: "white",
-                px: 2,
-                py: 1,
-                borderRadius: 1,
-                fontSize: "12px",
-                fontWeight: "bold",
-                backdropFilter: "blur(4px)",
-                textAlign: "center",
-              }}
-            >
-              🔍 Missing: {alignmentStatus.missingTrackers.join(", ")}
-              <br />
-              <span style={{ fontSize: "10px" }}>
-                Detected: {alignmentStatus.detectedCount}/4
-              </span>
-            </Box>
-          ) : (
             <Box
               sx={{
                 bgcolor: "rgba(33, 150, 243, 0.9)",
@@ -527,81 +523,27 @@ export default function QRTrackerOverlay({
                 fontSize: "12px",
                 fontWeight: "bold",
                 backdropFilter: "blur(4px)",
+                textAlign: "center",
+                animation: "pulse 2s infinite",
               }}
             >
-              🔄 Tracking... ({alignmentStatus.detectedCount}/4)
+              � Find tags: {alignmentStatus.missingTrackers.join(", ")}
             </Box>
-          )}
+          ) : null}
         </Box>
-
-        {/* Movement guidance */}
-        {!alignmentStatus.isAligned && (
-          <Box
-            sx={{
-              position: "absolute",
-              left: "50%",
-              bottom: "20px",
-              transform: "translateX(-50%)",
-              display: "flex",
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 2,
-              bgcolor: "rgba(0, 0, 0, 0.7)",
-              color: "white",
-              px: 2,
-              py: 1,
-              borderRadius: 1,
-              backdropFilter: "blur(4px)",
-              fontSize: "12px",
-              fontWeight: "bold",
-            }}
-          >
-            {Math.abs(alignmentStatus.translation.x) > 50 && (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                {alignmentStatus.translation.x > 0 ? "←" : "→"}
-                <span>
-                  Move {alignmentStatus.translation.x > 0 ? "left" : "right"}
-                </span>
-              </Box>
-            )}
-
-            {Math.abs(alignmentStatus.translation.y) > 50 && (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                {alignmentStatus.translation.y > 0 ? "↑" : "↓"}
-                <span>
-                  Move {alignmentStatus.translation.y > 0 ? "up" : "down"}
-                </span>
-              </Box>
-            )}
-
-            {Math.abs(alignmentStatus.scale - 1) > 0.2 && (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                {alignmentStatus.scale > 1 ? "🔍−" : "🔍+"}
-                <span>
-                  {alignmentStatus.scale > 1 ? "Move back" : "Move closer"}
-                </span>
-              </Box>
-            )}
-          </Box>
-        )}
       </Box>
     );
   };
 
   return (
-    <Box
-      sx={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        pointerEvents: "none",
-        zIndex: 10,
-      }}
-    >
-      <canvas ref={canvasRef} style={{ display: "none" }} />
+    <>
+      <canvas
+        ref={canvasRef}
+        style={{ display: "none" }}
+        width={640}
+        height={480}
+      />
       {renderOverlay()}
-    </Box>
+    </>
   );
 }

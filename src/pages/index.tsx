@@ -27,6 +27,9 @@ import {
   ArrowBack,
   PhotoLibrary,
   Tune,
+  Tag,
+  Camera,
+  Info,
 } from "@mui/icons-material";
 import Webcam from "react-webcam";
 import { useSocket } from "@/utils/socket";
@@ -35,6 +38,7 @@ import type {
   FilterOptions,
   ConnectedUser,
 } from "../utils/types";
+import { useRouter } from "next/router";
 
 export default function Home() {
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -56,6 +60,8 @@ export default function Home() {
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const socket = useSocket();
+  const router = useRouter();
+
   const carouselImages = useCallback(() => {
     const localImages = capturedImages;
     const sharedImages = socket.sharedPhotos
@@ -135,365 +141,191 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>EZ Snap - Photo Capture & Edit</title>
+        <title>EZ Snap - AprilTag Tracker System</title>
         <meta
           name="description"
-          content="Capture, process and preview photos easily"
+          content="Precise camera alignment using AprilTag trackers for perfect document capture"
         />
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1.0, user-scalable=no"
-        />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
       <Box
-        sx={{ flexGrow: 1, minHeight: "100vh", bgcolor: "background.default" }}
+        sx={{
+          minHeight: "100vh",
+          bgcolor: "background.default",
+          display: "flex",
+          flexDirection: "column",
+        }}
       >
-        <AppBar position="static" elevation={0}>
-          <Toolbar>
-            {selectedImage && (
-              <IconButton
-                edge="start"
-                color="inherit"
-                onClick={() => setSelectedImage(null)}
-                sx={{ mr: 2 }}
-              >
-                <ArrowBack />
-              </IconButton>
-            )}
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              EZ Snap
+        <Container maxWidth="md" sx={{ py: 8, flex: 1 }}>
+          <Box sx={{ textAlign: "center", mb: 6 }}>
+            <Typography
+              variant="h2"
+              component="h1"
+              gutterBottom
+              color="primary"
+              sx={{ fontWeight: "bold" }}
+            >
+              📸 EZ Snap
             </Typography>
-            {selectedImage && (
-              <IconButton
-                color="inherit"
-                onClick={() => setShowFilters(!showFilters)}
-              >
-                <Tune />
-              </IconButton>
-            )}
-          </Toolbar>
-        </AppBar>
+            <Typography
+              variant="h5"
+              color="text.secondary"
+              sx={{ mb: 4, maxWidth: 600, mx: "auto" }}
+            >
+              Professional camera alignment using AprilTag trackers for perfect
+              document capture with superior consistency
+            </Typography>
 
-        <Container maxWidth="sm" sx={{ py: 2, px: 1 }}>
-          {/* Welcome Screen */}
-          {!isCameraActive && !selectedImage && (
-            <Box sx={{ textAlign: "center", mt: 4 }}>
-              <Typography variant="h4" gutterBottom color="primary">
-                📸 EZ Snap
+            <Paper sx={{ p: 4, mb: 4, bgcolor: "success.light" }}>
+              <Typography variant="h6" color="success.dark" gutterBottom>
+                🎯 Why AprilTags over QR Codes?
               </Typography>
-              <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-                Capture • Process • Preview
-              </Typography>
-
-              <Stack
-                direction="row"
-                spacing={2}
-                justifyContent="center"
-                sx={{ mb: 4 }}
-              >
-                <Button
-                  variant="contained"
-                  size="large"
-                  startIcon={<CameraAlt />}
-                  onClick={() => setIsCameraActive(true)}
-                  sx={{ py: 1.5, px: 3 }}
-                >
-                  Start Camera
-                </Button>
-              </Stack>
-
-              <Stack
-                direction="row"
-                spacing={2}
-                justifyContent="center"
-                sx={{ mb: 4 }}
-              >
-                <Button
-                  variant="outlined"
-                  onClick={() => window.open("/qr-generator", "_blank")}
-                  sx={{ py: 1, px: 2 }}
-                >
-                  🎯 Generate QR Trackers
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={() => window.open("/qr-tracker", "_blank")}
-                  sx={{ py: 1, px: 2 }}
-                >
-                  📍 QR Tracker Detection
-                </Button>
-              </Stack>
-
-              {/* Connected Users Section */}
-              <Paper sx={{ p: 2, mb: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  👥 Session Info
+              <Stack spacing={1} sx={{ textAlign: "left", maxWidth: 500, mx: "auto" }}>
+                <Typography variant="body2" color="success.dark">
+                  ✅ <strong>Much more consistent detection</strong> - Designed specifically for camera tracking
                 </Typography>
-                <Stack spacing={1}>
-                  <Chip
-                    label={`Your UID: ${socket.currentUserUid ?? "Not connected"}`}
-                    color={socket.isConnected ? "success" : "default"}
-                    variant="outlined"
-                  />
-                  <Chip
-                    label={`Status: ${socket.isConnected ? "Connected" : "Disconnected"}`}
-                    color={socket.isConnected ? "success" : "error"}
-                  />
-                  <Typography variant="body2" color="text.secondary">
-                    Connected Users: {socket.connectedUsers?.length ?? 0}
-                  </Typography>
-                  {socket.connectedUsers &&
-                    socket.connectedUsers.length > 0 && (
-                      <Box sx={{ mt: 1 }}>
-                        {socket.connectedUsers.map((user: ConnectedUser) => (
-                          <Chip
-                            key={user.uid}
-                            label={`${user.uid}`}
-                            size="small"
-                            sx={{ mr: 1, mb: 1 }}
-                            color={
-                              user.uid === socket.currentUserUid
-                                ? "primary"
-                                : "default"
-                            }
-                          />
-                        ))}
-                      </Box>
-                    )}
-                </Stack>
-              </Paper>
-
-              {capturedImages.length > 0 && (
-                <Paper sx={{ p: 2, mt: 3 }}>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={1}
-                    sx={{ mb: 2 }}
-                  >
-                    <PhotoLibrary color="primary" />
-                    <Typography variant="h6">Recent Photos</Typography>
-                  </Stack>
-
-                  <Grid container spacing={1}>
-                    {capturedImages.slice(0, 6).map((image) => (
-                      <Grid key={image.id} size={4}>
-                        <Card
-                          sx={{
-                            cursor: "pointer",
-                            "&:hover": { transform: "scale(1.05)" },
-                          }}
-                          onClick={() => setSelectedImage(image)}
-                        >
-                          <CardMedia
-                            component="img"
-                            height="120"
-                            image={image.dataUrl}
-                            alt="Captured"
-                            sx={{ objectFit: "cover" }}
-                          />
-                        </Card>
-                      </Grid>
-                    ))}
-                  </Grid>
-                </Paper>
-              )}
-            </Box>
-          )}
-
-          {/* Camera View */}
-          {isCameraActive && (
-            <Box sx={{ position: "relative" }}>
-              <Paper sx={{ overflow: "hidden", borderRadius: 2 }}>
-                <Webcam
-                  ref={webcamRef}
-                  audio={false}
-                  screenshotFormat="image/jpeg"
-                  videoConstraints={videoConstraints}
-                  style={{ width: "100%", height: "auto" }}
-                />
-              </Paper>
-
-              <Box
-                sx={{
-                  position: "fixed",
-                  bottom: 20,
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  display: "flex",
-                  gap: 2,
-                  alignItems: "center",
-                }}
-              >
-                <Button
-                  variant="outlined"
-                  color="secondary"
-                  onClick={() => setIsCameraActive(false)}
-                  startIcon={<Close />}
-                  sx={{ bgcolor: "background.paper" }}
-                >
-                  Close
-                </Button>
-
-                <Fab
-                  color="primary"
-                  size="large"
-                  onClick={captureImage}
-                  sx={{
-                    width: 70,
-                    height: 70,
-                    boxShadow: 3,
-                  }}
-                >
-                  <CameraAlt sx={{ fontSize: 30 }} />
-                </Fab>
-              </Box>
-            </Box>
-          )}
-
-          {/* Image Editor */}
-          {selectedImage && (
-            <Box>
-              <Paper sx={{ mb: 2, overflow: "hidden", borderRadius: 2 }}>
-                <Box sx={{ position: "relative", width: "100%" }}>
-                  <canvas
-                    ref={processedCanvasRef}
-                    style={{
-                      width: "100%",
-                      height: "auto",
-                      display: "block",
-                      maxHeight: "60vh",
-                      objectFit: "contain",
-                    }}
-                  />
-                </Box>
-              </Paper>
-
-              {showFilters && (
-                <Paper sx={{ p: 2, mb: 2 }}>
-                  <Typography variant="h6" gutterBottom>
-                    Adjust Filters
-                  </Typography>
-
-                  <Stack spacing={3}>
-                    <Box>
-                      <Typography gutterBottom>
-                        Brightness: {filters.brightness}%
-                      </Typography>
-                      <Slider
-                        value={filters.brightness}
-                        onChange={(_, value) =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            brightness:
-                              typeof value === "number" ? value : value[0],
-                          }))
-                        }
-                        min={50}
-                        max={200}
-                        sx={{ color: "primary.main" }}
-                      />
-                    </Box>
-
-                    <Box>
-                      <Typography gutterBottom>
-                        Contrast: {filters.contrast}%
-                      </Typography>
-                      <Slider
-                        value={filters.contrast}
-                        onChange={(_, value) =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            contrast:
-                              typeof value === "number" ? value : value[0],
-                          }))
-                        }
-                        min={50}
-                        max={200}
-                        sx={{ color: "primary.main" }}
-                      />
-                    </Box>
-
-                    <Box>
-                      <Typography gutterBottom>
-                        Saturation: {filters.saturation}%
-                      </Typography>
-                      <Slider
-                        value={filters.saturation}
-                        onChange={(_, value) =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            saturation:
-                              typeof value === "number" ? value : value[0],
-                          }))
-                        }
-                        min={0}
-                        max={200}
-                        sx={{ color: "primary.main" }}
-                      />
-                    </Box>
-
-                    <Box>
-                      <Typography gutterBottom>
-                        Blur: {filters.blur}px
-                      </Typography>
-                      <Slider
-                        value={filters.blur}
-                        onChange={(_, value) =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            blur: typeof value === "number" ? value : value[0],
-                          }))
-                        }
-                        min={0}
-                        max={10}
-                        sx={{ color: "primary.main" }}
-                      />
-                    </Box>
-                  </Stack>
-                </Paper>
-              )}
-
-              <Stack direction="row" spacing={1} justifyContent="center">
-                <Button
-                  variant="outlined"
-                  onClick={resetFilters}
-                  startIcon={<Refresh />}
-                >
-                  Reset
-                </Button>
-                <Button
-                  variant="contained"
-                  onClick={downloadProcessedImage}
-                  startIcon={<Save />}
-                  sx={{ flexGrow: 1 }}
-                >
-                  Save Image
-                </Button>
+                <Typography variant="body2" color="success.dark">
+                  ✅ <strong>Better low-light performance</strong> - Optimized for various lighting conditions
+                </Typography>
+                <Typography variant="body2" color="success.dark">
+                  ✅ <strong>More robust to occlusion</strong> - Works even when partially covered
+                </Typography>
+                <Typography variant="body2" color="success.dark">
+                  ✅ <strong>Superior pose estimation</strong> - Accurate 3D position and orientation
+                </Typography>
+                <Typography variant="body2" color="success.dark">
+                  ✅ <strong>Professional grade</strong> - Used in robotics and AR applications
+                </Typography>
               </Stack>
+            </Paper>
 
-              <Box sx={{ mt: 2, textAlign: "center" }}>
-                <Chip
-                  label={`Captured: ${selectedImage.timestamp.toLocaleTimeString()}`}
-                  size="small"
-                  variant="outlined"
-                />
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={3}
+              justifyContent="center"
+              sx={{ mb: 6 }}
+            >
+              <Button
+                variant="contained"
+                size="large"
+                startIcon={<Tag />}
+                onClick={() => router.push("/qr-generator")}
+                sx={{ minWidth: 200 }}
+              >
+                Generate AprilTags
+              </Button>
+              <Button
+                variant="outlined"
+                size="large"
+                startIcon={<Camera />}
+                onClick={() => router.push("/qr-tracker")}
+                sx={{ minWidth: 200 }}
+              >
+                Start Tracking
+              </Button>
+            </Stack>
+          </Box>
+
+          <Box sx={{ display: "grid", gap: 3, gridTemplateColumns: { md: "1fr 1fr" } }}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom color="primary">
+                🎯 AprilTag Generator
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Create printable AprilTag reference sheets for A4 documents. 
+                Our tags are optimized for camera tracking with much better 
+                detection consistency than traditional QR codes.
+              </Typography>
+              <Button
+                variant="contained"
+                startIcon={<Tag />}
+                onClick={() => router.push("/qr-generator")}
+                fullWidth
+              >
+                Generate Tags
+              </Button>
+            </Paper>
+
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom color="primary">
+                📹 Tracker Detection
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Real-time AprilTag detection with live alignment feedback. 
+                Position your camera perfectly using our advanced tracking 
+                overlay system for professional results.
+              </Typography>
+              <Button
+                variant="outlined"
+                startIcon={<Camera />}
+                onClick={() => router.push("/qr-tracker")}
+                fullWidth
+              >
+                Start Detection
+              </Button>
+            </Paper>
+          </Box>
+
+          <Paper sx={{ p: 3, mt: 4, bgcolor: "info.light" }}>
+            <Typography variant="h6" gutterBottom color="info.dark">
+              📋 How it Works
+            </Typography>
+            <Stack spacing={2}>
+              <Box>
+                <Typography variant="subtitle2" color="info.dark">
+                  1. Generate AprilTag Reference Sheet
+                </Typography>
+                <Typography variant="body2" color="info.dark">
+                  Create a printable A4 sheet with four AprilTags positioned at the corners
+                </Typography>
               </Box>
-            </Box>
-          )}
+              <Box>
+                <Typography variant="subtitle2" color="info.dark">
+                  2. Print and Position Tags
+                </Typography>
+                <Typography variant="body2" color="info.dark">
+                  Print the sheet and place the AprilTags at your document corners
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" color="info.dark">
+                  3. Start Camera Tracking
+                </Typography>
+                <Typography variant="body2" color="info.dark">
+                  Use the detection system to get real-time alignment feedback
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" color="info.dark">
+                  4. Perfect Alignment
+                </Typography>
+                <Typography variant="body2" color="info.dark">
+                  Follow the visual guides to achieve perfect camera positioning
+                </Typography>
+              </Box>
+            </Stack>
+          </Paper>
         </Container>
 
-        {/* Global Carousel - Shows all captured images */}
-        {carouselImages().length > 0 && (
-          <Carousel
-            images={carouselImages()}
-            uid={socket.currentUserUid ?? "anonymous"}
-            selectedImage={selectedImage}
-            onImageClick={(image) => setSelectedImage(image)}
-          />
-        )}
+        <Box
+          component="footer"
+          sx={{
+            py: 3,
+            px: 2,
+            mt: "auto",
+            backgroundColor: "background.paper",
+            borderTop: 1,
+            borderColor: "divider",
+          }}
+        >
+          <Container maxWidth="sm">
+            <Typography variant="body2" color="text.secondary" align="center">
+              EZ Snap - Professional AprilTag Camera Alignment System
+            </Typography>
+          </Container>
+        </Box>
       </Box>
     </>
   );

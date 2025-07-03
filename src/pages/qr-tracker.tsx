@@ -17,7 +17,7 @@ import {
   Alert,
   Chip,
 } from "@mui/material";
-import { ArrowBack, QrCode, Settings, CameraAlt } from "@mui/icons-material";
+import { ArrowBack, Tag, Settings, CameraAlt } from "@mui/icons-material";
 import Webcam from "react-webcam";
 import { useRouter } from "next/router";
 import QRTrackerOverlay from "@/components/QRTrackerOverlay";
@@ -59,18 +59,18 @@ export default function QRTracker() {
   }, []);
 
   const getAlignmentInstructions = () => {
-    if (!alignmentStatus) return "🎯 Initializing QR tracker detection...";
+    if (!alignmentStatus) return "🎯 Initializing AprilTag tracker detection...";
 
     if (alignmentStatus.isAligned) {
       return "🎉 Perfect alignment achieved! Your camera is precisely positioned.";
     }
 
     if (alignmentStatus.staleTrackers.length > 0) {
-      return `⚠️ Some QR trackers moved or became unreadable: ${alignmentStatus.staleTrackers.join(", ")}. Please reposition or ensure clear visibility.`;
+      return `⚠️ Some AprilTag trackers moved or became unreadable: ${alignmentStatus.staleTrackers.join(", ")}. Please reposition or ensure clear visibility.`;
     }
 
     if (alignmentStatus.missingTrackers.length > 0) {
-      return `🔍 Position your camera to see the ${alignmentStatus.missingTrackers.join(" and ")} QR tracker(s). Follow the on-screen indicators.`;
+      return `🔍 Position your camera to see the ${alignmentStatus.missingTrackers.join(" and ")} AprilTag tracker(s). Follow the on-screen indicators.`;
     }
 
     return "📐 Follow the visual guides overlaid on your camera view to align perfectly.";
@@ -79,10 +79,10 @@ export default function QRTracker() {
   return (
     <>
       <Head>
-        <title>QR Tracker Detection - EZ Snap</title>
+        <title>AprilTag Tracker Detection - EZ Snap</title>
         <meta
           name="description"
-          content="Precise alignment using QR code trackers"
+          content="Precise alignment using AprilTag trackers"
         />
         <meta
           name="viewport"
@@ -104,13 +104,13 @@ export default function QRTracker() {
               <ArrowBack />
             </IconButton>
             <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              QR Tracker Detection
+              AprilTag Tracker Detection
             </Typography>
             <IconButton
               color="inherit"
               onClick={() => router.push("/qr-generator")}
             >
-              <QrCode />
+              <Tag />
             </IconButton>
           </Toolbar>
         </AppBar>
@@ -120,34 +120,34 @@ export default function QRTracker() {
             // Welcome Screen
             <Box sx={{ textAlign: "center", mt: 4 }}>
               <Typography variant="h4" gutterBottom color="primary">
-                🎯 QR Tracker Detection
+                🎯 AprilTag Tracker Detection
               </Typography>
               <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-                Use QR code trackers for precise A4 page alignment and camera
-                positioning
+                Use AprilTag trackers for precise A4 page alignment and camera
+                positioning with superior consistency compared to QR codes
               </Typography>
 
               <Card sx={{ maxWidth: 500, mx: "auto", mb: 4 }}>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    QR Tracker Grid Configuration
+                    AprilTag Tracker Grid Configuration
                   </Typography>
                   <Stack spacing={2}>
                     <Stack direction="row" justifyContent="space-between">
                       <Typography>Grid Position 1:</Typography>
-                      <Chip label={TrackerID.QR_01} size="small" />
+                      <Chip label={`Tag ${TrackerID.TAG_01}`} size="small" />
                     </Stack>
                     <Stack direction="row" justifyContent="space-between">
                       <Typography>Grid Position 2:</Typography>
-                      <Chip label={TrackerID.QR_02} size="small" />
+                      <Chip label={`Tag ${TrackerID.TAG_02}`} size="small" />
                     </Stack>
                     <Stack direction="row" justifyContent="space-between">
                       <Typography>Grid Position 3:</Typography>
-                      <Chip label={TrackerID.QR_03} size="small" />
+                      <Chip label={`Tag ${TrackerID.TAG_03}`} size="small" />
                     </Stack>
                     <Stack direction="row" justifyContent="space-between">
                       <Typography>Grid Position 4:</Typography>
-                      <Chip label={TrackerID.QR_04} size="small" />
+                      <Chip label={`Tag ${TrackerID.TAG_04}`} size="small" />
                     </Stack>
                     <Stack direction="row" justifyContent="space-between">
                       <Typography>A4 Page Size:</Typography>
@@ -160,17 +160,20 @@ export default function QRTracker() {
                 </CardContent>
               </Card>
 
-              <Alert severity="info" sx={{ mb: 4, maxWidth: 500, mx: "auto" }}>
+              <Alert severity="success" sx={{ mb: 4, maxWidth: 500, mx: "auto" }}>
                 <Typography variant="body2">
-                  <strong>A4 Page Setup Instructions:</strong>
+                  <strong>🎯 AprilTag Setup Instructions:</strong>
                   <br />
-                  1. Generate and print the QR tracker reference sheet
+                  1. Generate and print the AprilTag tracker reference sheet
                   <br />
-                  2. Place QR codes at corners of your A4 document
+                  2. Place AprilTags at corners of your A4 document
                   <br />
                   3. Start camera and follow the real-time overlay guidance
                   <br />
                   4. Achieve perfect alignment for precise document capture
+                  <br />
+                  <br />
+                  <strong>✨ AprilTags provide much more consistent and robust detection than QR codes!</strong>
                 </Typography>
               </Alert>
 
@@ -178,9 +181,9 @@ export default function QRTracker() {
                 <Button
                   variant="outlined"
                   onClick={() => router.push("/qr-generator")}
-                  startIcon={<QrCode />}
+                  startIcon={<Tag />}
                 >
-                  Generate QR Codes
+                  Generate AprilTags
                 </Button>
                 <Button
                   variant="contained"
@@ -209,7 +212,7 @@ export default function QRTracker() {
                         onChange={(e) => setIsTrackerActive(e.target.checked)}
                       />
                     }
-                    label="QR Tracker Detection"
+                    label="AprilTag Tracker Detection"
                   />
                   <Button
                     variant="outlined"
@@ -254,7 +257,7 @@ export default function QRTracker() {
                   }}
                 />
 
-                {/* QR Tracker Overlay */}
+                {/* AprilTag Tracker Overlay */}
                 {isTrackerActive && videoRef.current && (
                   <QRTrackerOverlay
                     videoRef={videoRef as React.RefObject<HTMLVideoElement>}
@@ -273,7 +276,7 @@ export default function QRTracker() {
                   </Typography>
                   <Stack direction="row" spacing={2} flexWrap="wrap">
                     <Chip
-                      label={`Trackers: ${4 - alignmentStatus.missingTrackers.length}/4`}
+                      label={`Tags: ${4 - alignmentStatus.missingTrackers.length}/4`}
                       color={
                         alignmentStatus.missingTrackers.length === 0
                           ? "success"

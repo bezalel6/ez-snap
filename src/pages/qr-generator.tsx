@@ -16,19 +16,19 @@ import {
   CardContent,
 } from "@mui/material";
 import { ArrowBack, Download, Print } from "@mui/icons-material";
-import QRCode from "qrcode";
 import { useRouter } from "next/router";
 import { TrackerID, A4_DIMENSIONS } from "@/utils/config";
+import { generateAprilTagSVG, svgToPngDataUrl } from "@/utils/apriltag";
 
 export default function QRGenerator() {
   const router = useRouter();
-  const [qrData, setQrData] = useState<Record<TrackerID, string>>({
-    [TrackerID.QR_01]: TrackerID.QR_01,
-    [TrackerID.QR_02]: TrackerID.QR_02,
-    [TrackerID.QR_03]: TrackerID.QR_03,
-    [TrackerID.QR_04]: TrackerID.QR_04,
+  const [tagData, setTagData] = useState<Record<TrackerID, string>>({
+    [TrackerID.TAG_01]: TrackerID.TAG_01,
+    [TrackerID.TAG_02]: TrackerID.TAG_02,
+    [TrackerID.TAG_03]: TrackerID.TAG_03,
+    [TrackerID.TAG_04]: TrackerID.TAG_04,
   });
-  const [qrCodes, setQrCodes] = useState<Record<string, string>>({});
+  const [tagImages, setTagImages] = useState<Record<string, string>>({});
   const [rectangleDimensions, setRectangleDimensions] = useState<{
     width: number;
     height: number;
@@ -37,24 +37,19 @@ export default function QRGenerator() {
     height: A4_DIMENSIONS.PORTRAIT.height,
   });
 
-  const generateQRCodes = async () => {
+  const generateAprilTags = async () => {
     try {
-      const codes: Record<string, string> = {};
+      const images: Record<string, string> = {};
 
-      for (const [position, data] of Object.entries(qrData)) {
-        codes[position] = await QRCode.toDataURL(data, {
-          width: 120,
-          margin: 1,
-          color: {
-            dark: "#000000",
-            light: "#FFFFFF",
-          },
-        });
+      for (const [position, data] of Object.entries(tagData)) {
+        const tagId = parseInt(data, 10);
+        const svgString = generateAprilTagSVG(tagId, 120);
+        images[position] = await svgToPngDataUrl(svgString, 120, 140);
       }
 
-      setQrCodes(codes);
+      setTagImages(images);
     } catch (error) {
-      console.error("Error generating QR codes:", error);
+      console.error("Error generating AprilTags:", error);
     }
   };
 
@@ -64,9 +59,9 @@ export default function QRGenerator() {
     if (!ctx) return;
 
     const padding = 50;
-    const qrSize = 120;
-    canvas.width = rectangleDimensions.width + qrSize + padding * 3;
-    canvas.height = rectangleDimensions.height + qrSize + padding * 3;
+    const tagSize = 120;
+    canvas.width = rectangleDimensions.width + tagSize + padding * 3;
+    canvas.height = rectangleDimensions.height + tagSize + padding * 3;
 
     // Draw white background
     ctx.fillStyle = "#FFFFFF";
@@ -77,8 +72,8 @@ export default function QRGenerator() {
     ctx.lineWidth = 2;
     ctx.setLineDash([10, 5]);
     ctx.strokeRect(
-      padding + qrSize / 2,
-      padding + qrSize / 2,
+      padding + tagSize / 2,
+      padding + tagSize / 2,
       rectangleDimensions.width,
       rectangleDimensions.height,
     );
@@ -89,15 +84,15 @@ export default function QRGenerator() {
     ctx.lineWidth = 1;
 
     const corners = [
-      { x: padding + qrSize / 2, y: padding + qrSize / 2, label: "TL" },
+      { x: padding + tagSize / 2, y: padding + tagSize / 2, label: "TL" },
       {
-        x: padding + qrSize / 2 + rectangleDimensions.width,
-        y: padding + qrSize / 2,
+        x: padding + tagSize / 2 + rectangleDimensions.width,
+        y: padding + tagSize / 2,
         label: "TR",
       },
       {
-        x: padding + qrSize / 2,
-        y: padding + qrSize / 2 + rectangleDimensions.height,
+        x: padding + tagSize / 2,
+        y: padding + tagSize / 2 + rectangleDimensions.height,
         label: "BL",
       },
     ];
@@ -109,37 +104,37 @@ export default function QRGenerator() {
       ctx.fillText(corner.label, corner.x - 10, corner.y - 15);
     });
 
-    // Load and draw QR codes
-    const images = Object.entries(qrCodes).map(([position, dataUrl]) => {
+    // Load and draw AprilTag images
+    const images = Object.entries(tagImages).map(([position, dataUrl]) => {
       return new Promise<void>((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
           let x, y;
           switch (position as TrackerID) {
-            case TrackerID.QR_01:
+            case TrackerID.TAG_01:
               x = padding;
               y = padding;
               break;
-            case TrackerID.QR_02:
-              x = padding + qrSize / 2 + rectangleDimensions.width;
+            case TrackerID.TAG_02:
+              x = padding + tagSize / 2 + rectangleDimensions.width;
               y = padding;
               break;
-            case TrackerID.QR_03:
-              x = padding + qrSize / 2 + rectangleDimensions.width;
-              y = padding + qrSize / 2 + rectangleDimensions.height;
+            case TrackerID.TAG_03:
+              x = padding + tagSize / 2 + rectangleDimensions.width;
+              y = padding + tagSize / 2 + rectangleDimensions.height;
               break;
-            case TrackerID.QR_04:
+            case TrackerID.TAG_04:
               x = padding;
-              y = padding + qrSize / 2 + rectangleDimensions.height;
+              y = padding + tagSize / 2 + rectangleDimensions.height;
               break;
             default:
               return resolve();
           }
-          ctx.drawImage(img, x, y, qrSize, qrSize);
+          ctx.drawImage(img, x, y, tagSize, tagSize);
           resolve();
         };
         img.onerror = () =>
-          reject(new Error(`Failed to load QR code image for ${position}`));
+          reject(new Error(`Failed to load AprilTag image for ${position}`));
         img.src = dataUrl;
       });
     });
@@ -147,19 +142,19 @@ export default function QRGenerator() {
     try {
       await Promise.all(images);
     } catch (error) {
-      console.error("Error loading QR code images:", error);
+      console.error("Error loading AprilTag images:", error);
       return;
     }
 
     // Calculate center of the reference rectangle for proper text positioning
-    const centerX = padding + qrSize / 2 + rectangleDimensions.width / 2;
-    const centerY = padding + qrSize / 2 + rectangleDimensions.height / 2;
+    const centerX = padding + tagSize / 2 + rectangleDimensions.width / 2;
+    const centerY = padding + tagSize / 2 + rectangleDimensions.height / 2;
 
     // Add title centered in the reference rectangle
     ctx.fillStyle = "#000000";
     ctx.font = "bold 18px Arial";
     ctx.textAlign = "center";
-    const title = "A4 QR Tracker Reference Sheet";
+    const title = "A4 AprilTag Tracker Reference Sheet";
     ctx.fillText(title, centerX, centerY - 60);
 
     // Add instructions centered below title
@@ -175,8 +170,8 @@ export default function QRGenerator() {
       `Size: ${rectangleDimensions.width}×${rectangleDimensions.height}px`,
       `Physical: ${isA4Portrait ? "210×297mm (Portrait)" : isA4Landscape ? "297×210mm (Landscape)" : "Custom dimensions"}`,
       "1. Print this reference sheet",
-      "2. Cut out QR codes and place at document corners",
-      "3. Use QR Tracker Detection for perfect alignment",
+      "2. Cut out AprilTags and place at document corners",
+      "3. Use AprilTag Tracker Detection for perfect alignment",
     ];
 
     instructions.forEach((line, index) => {
@@ -193,22 +188,22 @@ export default function QRGenerator() {
       : isA4Landscape
         ? "landscape"
         : "custom";
-    link.download = `a4-qr-tracker-${orientation}-${Date.now()}.png`;
+    link.download = `a4-apriltag-tracker-${orientation}-${Date.now()}.png`;
     link.href = canvas.toDataURL("image/png");
     link.click();
   };
 
   useEffect(() => {
-    void generateQRCodes();
-  }, [qrData]);
+    void generateAprilTags();
+  }, [tagData]);
 
   return (
     <>
       <Head>
-        <title>QR Tracker Generator - EZ Snap</title>
+        <title>AprilTag Tracker Generator - EZ Snap</title>
         <meta
           name="description"
-          content="Generate QR codes for precise alignment tracking"
+          content="Generate AprilTags for precise alignment tracking"
         />
       </Head>
 
@@ -226,14 +221,14 @@ export default function QRGenerator() {
               <ArrowBack />
             </IconButton>
             <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              QR Tracker Generator
+              AprilTag Tracker Generator
             </Typography>
           </Toolbar>
         </AppBar>
 
         <Container maxWidth="md" sx={{ py: 3 }}>
           <Typography variant="h4" gutterBottom align="center" color="primary">
-            🎯 QR Tracker Generator
+            🎯 AprilTag Tracker Generator
           </Typography>
           <Typography
             variant="body1"
@@ -241,8 +236,9 @@ export default function QRGenerator() {
             align="center"
             sx={{ mb: 4 }}
           >
-            Generate QR codes for precise A4 page alignment tracking. Print the
-            reference sheet and use it for perfect camera positioning.
+            Generate AprilTags for precise A4 page alignment tracking. Print the
+            reference sheet and use it for perfect camera positioning with much
+            more consistent scanning than QR codes.
           </Typography>
 
           <Grid container spacing={3}>
@@ -255,48 +251,52 @@ export default function QRGenerator() {
 
                 <Stack spacing={2}>
                   <TextField
-                    label={TrackerID.QR_01}
-                    value={qrData[TrackerID.QR_01]}
+                    label="Tag 1 (Top-Left)"
+                    value={tagData[TrackerID.TAG_01]}
                     onChange={(e) =>
-                      setQrData((prev) => ({
+                      setTagData((prev) => ({
                         ...prev,
-                        [TrackerID.QR_01]: e.target.value,
+                        [TrackerID.TAG_01]: e.target.value,
                       }))
                     }
                     fullWidth
+                    helperText="AprilTag ID 1"
                   />
                   <TextField
-                    label={TrackerID.QR_02}
-                    value={qrData[TrackerID.QR_02]}
+                    label="Tag 2 (Top-Right)"
+                    value={tagData[TrackerID.TAG_02]}
                     onChange={(e) =>
-                      setQrData((prev) => ({
+                      setTagData((prev) => ({
                         ...prev,
-                        [TrackerID.QR_02]: e.target.value,
+                        [TrackerID.TAG_02]: e.target.value,
                       }))
                     }
                     fullWidth
+                    helperText="AprilTag ID 2"
                   />
                   <TextField
-                    label={TrackerID.QR_03}
-                    value={qrData[TrackerID.QR_03]}
+                    label="Tag 3 (Bottom-Right)"
+                    value={tagData[TrackerID.TAG_03]}
                     onChange={(e) =>
-                      setQrData((prev) => ({
+                      setTagData((prev) => ({
                         ...prev,
-                        [TrackerID.QR_03]: e.target.value,
+                        [TrackerID.TAG_03]: e.target.value,
                       }))
                     }
                     fullWidth
+                    helperText="AprilTag ID 3"
                   />
                   <TextField
-                    label={TrackerID.QR_04}
-                    value={qrData[TrackerID.QR_04]}
+                    label="Tag 4 (Bottom-Left)"
+                    value={tagData[TrackerID.TAG_04]}
                     onChange={(e) =>
-                      setQrData((prev) => ({
+                      setTagData((prev) => ({
                         ...prev,
-                        [TrackerID.QR_04]: e.target.value,
+                        [TrackerID.TAG_04]: e.target.value,
                       }))
                     }
                     fullWidth
+                    helperText="AprilTag ID 4"
                   />
                 </Stack>
 
@@ -379,7 +379,7 @@ export default function QRGenerator() {
                     variant="contained"
                     onClick={downloadReferenceSheet}
                     startIcon={<Download />}
-                    disabled={Object.keys(qrCodes).length === 0}
+                    disabled={Object.keys(tagImages).length === 0}
                     fullWidth
                   >
                     Download Reference Sheet
@@ -388,34 +388,35 @@ export default function QRGenerator() {
               </Paper>
             </Grid>
 
-            {/* QR Code Preview */}
+            {/* AprilTag Preview */}
             <Grid size={{ xs: 12, md: 6 }}>
               <Paper sx={{ p: 3 }}>
                 <Typography variant="h6" gutterBottom>
-                  Generated QR Codes
+                  Generated AprilTags
                 </Typography>
 
                 <Grid container spacing={2}>
-                  {Object.entries(qrCodes).map(([position, dataUrl]) => (
+                  {Object.entries(tagImages).map(([position, dataUrl]) => (
                     <Grid size={4} key={position}>
                       <Card>
                         <CardContent sx={{ textAlign: "center", p: 1 }}>
                           <img
                             src={dataUrl}
-                            alt={`QR ${position}`}
+                            alt={`AprilTag ${position}`}
                             style={{ width: "100%", height: "auto" }}
                           />
                           <Typography variant="caption" display="block">
                             {position
                               .replace(/([A-Z])/g, " $1")
-                              .replace(/^./, (str) => str.toUpperCase())}
+                              .replace(/^./, (str) => str.toUpperCase())
+                              .replace("TAG", "Tag")}
                           </Typography>
                           <Typography
                             variant="caption"
                             color="text.secondary"
                             display="block"
                           >
-                            {qrData[position as keyof typeof qrData]}
+                            ID: {tagData[position as keyof typeof tagData]}
                           </Typography>
                         </CardContent>
                       </Card>
@@ -423,7 +424,25 @@ export default function QRGenerator() {
                   ))}
                 </Grid>
 
-                {Object.keys(qrCodes).length > 0 && (
+                {Object.keys(tagImages).length > 0 && (
+                  <Box
+                    sx={{ mt: 2, p: 2, bgcolor: "success.light", borderRadius: 1 }}
+                  >
+                    <Typography variant="body2" color="success.dark">
+                      <strong>🎯 AprilTag Advantages:</strong>
+                      <br />
+                      ✅ Much more consistent detection than QR codes
+                      <br />
+                      ✅ Better performance in poor lighting
+                      <br />
+                      ✅ More robust to occlusion and perspective
+                      <br />
+                      ✅ Optimized for camera tracking applications
+                    </Typography>
+                  </Box>
+                )}
+
+                {Object.keys(tagImages).length > 0 && (
                   <Box
                     sx={{ mt: 2, p: 2, bgcolor: "info.light", borderRadius: 1 }}
                   >
@@ -434,9 +453,9 @@ export default function QRGenerator() {
                       <br />
                       2. Print on standard A4 paper (210×297mm)
                       <br />
-                      3. Cut out and position QR codes at document corners
+                      3. Cut out and position AprilTags at document corners
                       <br />
-                      4. Use QR Tracker Detection for perfect alignment
+                      4. Use AprilTag Tracker Detection for perfect alignment
                     </Typography>
                   </Box>
                 )}

@@ -7,7 +7,7 @@
  * - Camera parameter handling
  */
 
-import { TrackerID, TRACKER_CONFIG, AprilTagDetection } from "./config";
+import { TrackerID, TRACKER_CONFIG, type AprilTagDetection } from "./config";
 
 // Type definition for the AprilTag WASM module
 declare global {
