@@ -17,6 +17,7 @@ const config = {
     locales: ["en"],
     defaultLocale: "en",
   },
+  allowedDevOrigins:["192.168.0.121","thinkinator"]
 };
 
 export default config;
