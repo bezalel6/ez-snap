@@ -28,8 +28,8 @@ export default function QRGenerator() {
   });
   const [qrCodes, setQrCodes] = useState<{[key: string]: string}>({});
   const [rectangleDimensions, setRectangleDimensions] = useState({
-    width: 400,
-    height: 300,
+    width: 595,  // A4 width at 72 DPI
+    height: 842, // A4 height at 72 DPI (595 × √2)
   });
 
   const generateQRCodes = async () => {
@@ -129,16 +129,21 @@ export default function QRGenerator() {
       // Add title and instructions
       ctx.fillStyle = '#000000';
       ctx.font = 'bold 16px Arial';
-      ctx.fillText('QR Tracker Reference Sheet', padding, 30);
+      ctx.fillText('A4 QR Tracker Reference Sheet', padding, 30);
       
       ctx.font = '12px Arial';
-      ctx.fillText(`Rectangle: ${rectangleDimensions.width}x${rectangleDimensions.height}px`, padding, canvas.height - 60);
-      ctx.fillText('Position QR codes at the marked corners for alignment', padding, canvas.height - 40);
-      ctx.fillText('Use this sheet with the QR Tracker Detection feature', padding, canvas.height - 20);
+      const isA4Portrait = rectangleDimensions.width === 595 && rectangleDimensions.height === 842;
+      const isA4Landscape = rectangleDimensions.width === 842 && rectangleDimensions.height === 595;
+      
+      ctx.fillText(`A4 Page: ${rectangleDimensions.width}x${rectangleDimensions.height}px`, padding, canvas.height - 80);
+      ctx.fillText(`Physical: ${isA4Portrait ? '210x297mm (Portrait)' : isA4Landscape ? '297x210mm (Landscape)' : 'Custom dimensions'}`, padding, canvas.height - 60);
+      ctx.fillText('Position QR codes at the marked corners of your A4 document', padding, canvas.height - 40);
+      ctx.fillText('Use this with QR Tracker Detection for perfect alignment', padding, canvas.height - 20);
 
       // Download
       const link = document.createElement('a');
-      link.download = `qr-tracker-reference-${Date.now()}.png`;
+      const orientation = isA4Portrait ? 'portrait' : isA4Landscape ? 'landscape' : 'custom';
+      link.download = `a4-qr-tracker-${orientation}-${Date.now()}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     });
@@ -177,7 +182,7 @@ export default function QRGenerator() {
             🎯 QR Tracker Generator
           </Typography>
           <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 4 }}>
-            Generate QR codes for precise alignment tracking. Print and position these at the corners of your target rectangle.
+            Generate QR codes for precise A4 page alignment tracking. Print the reference sheet and use it for perfect camera positioning.
           </Typography>
 
           <Grid container spacing={3}>
@@ -210,23 +215,42 @@ export default function QRGenerator() {
                 </Stack>
 
                 <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-                  Rectangle Dimensions
+                  A4 Page Dimensions
                 </Typography>
                 
                 <Stack spacing={2}>
+                  <Stack direction="row" spacing={1} justifyContent="center">
+                    <Button
+                      size="small"
+                      variant={rectangleDimensions.width === 595 && rectangleDimensions.height === 842 ? "contained" : "outlined"}
+                      onClick={() => setRectangleDimensions({ width: 595, height: 842 })}
+                    >
+                      A4 Portrait
+                    </Button>
+                    <Button
+                      size="small"
+                      variant={rectangleDimensions.width === 842 && rectangleDimensions.height === 595 ? "contained" : "outlined"}
+                      onClick={() => setRectangleDimensions({ width: 842, height: 595 })}
+                    >
+                      A4 Landscape
+                    </Button>
+                  </Stack>
+                  
                   <TextField
-                    label="Width (px)"
+                    label="Width (px) - A4: 210mm = 595px"
                     type="number"
                     value={rectangleDimensions.width}
-                    onChange={(e) => setRectangleDimensions(prev => ({ ...prev, width: parseInt(e.target.value) || 400 }))}
+                    onChange={(e) => setRectangleDimensions(prev => ({ ...prev, width: parseInt(e.target.value) || 595 }))}
                     fullWidth
+                    helperText="At 72 DPI: 210mm = 595px, 297mm = 842px"
                   />
                   <TextField
-                    label="Height (px)"
+                    label="Height (px) - A4: 297mm = 842px"
                     type="number"
                     value={rectangleDimensions.height}
-                    onChange={(e) => setRectangleDimensions(prev => ({ ...prev, height: parseInt(e.target.value) || 300 }))}
+                    onChange={(e) => setRectangleDimensions(prev => ({ ...prev, height: parseInt(e.target.value) || 842 }))}
                     fullWidth
+                    helperText={`Current ratio: ${(rectangleDimensions.width / rectangleDimensions.height).toFixed(3)} ${rectangleDimensions.width === 595 && rectangleDimensions.height === 842 ? '(Perfect A4 Portrait!)' : rectangleDimensions.width === 842 && rectangleDimensions.height === 595 ? '(Perfect A4 Landscape!)' : ''}`}
                   />
                 </Stack>
 
@@ -273,17 +297,17 @@ export default function QRGenerator() {
                   ))}
                 </Grid>
 
-                {Object.keys(qrCodes).length > 0 && (
-                  <Box sx={{ mt: 2, p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
-                    <Typography variant="body2" color="info.dark">
-                      <strong>Instructions:</strong><br />
-                      1. Download the reference sheet<br />
-                      2. Print it or display on screen<br />
-                      3. Position QR codes at marked corners<br />
-                      4. Use QR Tracker Detection to align your camera
-                    </Typography>
-                  </Box>
-                )}
+                                 {Object.keys(qrCodes).length > 0 && (
+                   <Box sx={{ mt: 2, p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+                     <Typography variant="body2" color="info.dark">
+                       <strong>A4 Usage Instructions:</strong><br />
+                       1. Download the A4 reference sheet<br />
+                       2. Print on standard A4 paper (210×297mm)<br />
+                       3. Cut out and position QR codes at document corners<br />
+                       4. Use QR Tracker Detection for perfect alignment
+                     </Typography>
+                   </Box>
+                 )}
               </Paper>
             </Grid>
           </Grid>

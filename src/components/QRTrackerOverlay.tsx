@@ -249,11 +249,19 @@ export default function QRTrackerOverlay({
     const canvasWidth = canvasRef.current.width || 640;
     const canvasHeight = canvasRef.current.height || 480;
 
-    // Calculate target positions for QR trackers (where they should be)
+    // Calculate target positions for QR trackers optimized for A4 page detection
+    // A4 aspect ratio is 1:√2 (≈1:1.414), so we adjust positioning accordingly
+    const aspectRatio = canvasWidth / canvasHeight;
+    const isLandscape = aspectRatio > 1;
+    
+    // For A4 pages, QR codes should be positioned with proper margins
+    const marginX = isLandscape ? 0.15 : 0.18; // Adjust for A4 proportions
+    const marginY = isLandscape ? 0.18 : 0.15;
+    
     const targetPositions = {
-      topLeft: { x: canvasWidth * 0.2, y: canvasHeight * 0.2 },
-      topRight: { x: canvasWidth * 0.8, y: canvasHeight * 0.2 },
-      bottomLeft: { x: canvasWidth * 0.2, y: canvasHeight * 0.8 }
+      topLeft: { x: canvasWidth * marginX, y: canvasHeight * marginY },
+      topRight: { x: canvasWidth * (1 - marginX), y: canvasHeight * marginY },
+      bottomLeft: { x: canvasWidth * marginX, y: canvasHeight * (1 - marginY) }
     };
 
     const getMovementIndicators = () => {

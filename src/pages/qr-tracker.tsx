@@ -39,14 +39,14 @@ export default function QRTracker() {
   const [isTrackerActive, setIsTrackerActive] = useState(false);
   const [alignmentStatus, setAlignmentStatus] = useState<AlignmentStatus | null>(null);
   
-  // Default tracker configuration
+  // Default tracker configuration for A4 page
   const [trackerConfig] = useState({
     topLeft: "TL_TRACKER_001",
     topRight: "TR_TRACKER_002",
     bottomLeft: "BL_TRACKER_003",
     targetRectangle: {
-      width: 400,
-      height: 300,
+      width: 595,  // A4 width at 72 DPI (210mm)
+      height: 842, // A4 height at 72 DPI (297mm)
     },
   });
 
@@ -123,18 +123,18 @@ export default function QRTracker() {
           {!isCameraActive ? (
             // Welcome Screen
             <Box sx={{ textAlign: "center", mt: 4 }}>
-              <Typography variant="h4" gutterBottom color="primary">
-                🎯 QR Tracker Detection
-              </Typography>
-              <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-                Use QR code trackers for precise camera alignment and positioning
-              </Typography>
+                             <Typography variant="h4" gutterBottom color="primary">
+                 🎯 QR Tracker Detection
+               </Typography>
+               <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+                 Use QR code trackers for precise A4 page alignment and camera positioning
+               </Typography>
 
-              <Card sx={{ maxWidth: 500, mx: "auto", mb: 4 }}>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Current Tracker Configuration
-                  </Typography>
+                              <Card sx={{ maxWidth: 500, mx: "auto", mb: 4 }}>
+                 <CardContent>
+                   <Typography variant="h6" gutterBottom>
+                     A4 Page Tracker Configuration
+                   </Typography>
                   <Stack spacing={2}>
                     <Stack direction="row" justifyContent="space-between">
                       <Typography>Top Left:</Typography>
@@ -148,25 +148,26 @@ export default function QRTracker() {
                       <Typography>Bottom Left:</Typography>
                       <Chip label={trackerConfig.bottomLeft} size="small" />
                     </Stack>
-                    <Stack direction="row" justifyContent="space-between">
-                      <Typography>Target Size:</Typography>
-                      <Chip 
-                        label={`${trackerConfig.targetRectangle.width}×${trackerConfig.targetRectangle.height}px`} 
-                        size="small" 
-                      />
-                    </Stack>
+                                         <Stack direction="row" justifyContent="space-between">
+                       <Typography>A4 Page Size:</Typography>
+                       <Chip 
+                         label={`${trackerConfig.targetRectangle.width}×${trackerConfig.targetRectangle.height}px (210×297mm)`} 
+                         size="small" 
+                       />
+                     </Stack>
                   </Stack>
                 </CardContent>
               </Card>
 
-              <Alert severity="info" sx={{ mb: 4, maxWidth: 500, mx: "auto" }}>
-                <Typography variant="body2">
-                  <strong>Instructions:</strong><br />
-                  1. Generate and print QR trackers<br />
-                  2. Position them at the corners of your target rectangle<br />
-                  3. Start the camera and align according to on-screen guidance
-                </Typography>
-              </Alert>
+                             <Alert severity="info" sx={{ mb: 4, maxWidth: 500, mx: "auto" }}>
+                 <Typography variant="body2">
+                   <strong>A4 Page Setup Instructions:</strong><br />
+                   1. Generate and print the QR tracker reference sheet<br />
+                   2. Place QR codes at corners of your A4 document<br />
+                   3. Start camera and follow the real-time overlay guidance<br />
+                   4. Achieve perfect alignment for precise document capture
+                 </Typography>
+               </Alert>
 
               <Stack direction="row" spacing={2} justifyContent="center">
                 <Button
