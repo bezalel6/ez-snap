@@ -246,6 +246,119 @@ export default function QRTrackerOverlay({
   const renderOverlay = () => {
     if (!isActive || !canvasRef.current) return null;
 
+    const canvasWidth = canvasRef.current.width || 640;
+    const canvasHeight = canvasRef.current.height || 480;
+
+    // Calculate target positions for QR trackers (where they should be)
+    const targetPositions = {
+      topLeft: { x: canvasWidth * 0.2, y: canvasHeight * 0.2 },
+      topRight: { x: canvasWidth * 0.8, y: canvasHeight * 0.2 },
+      bottomLeft: { x: canvasWidth * 0.2, y: canvasHeight * 0.8 }
+    };
+
+    const getMovementIndicators = () => {
+      if (alignmentStatus.isAligned) return null;
+
+      const indicators = [];
+
+      // Movement arrows based on translation
+      if (Math.abs(alignmentStatus.translation.x) > 50) {
+        const direction = alignmentStatus.translation.x > 0 ? 'left' : 'right';
+        const arrow = direction === 'left' ? '◀◀◀' : '▶▶▶';
+        indicators.push(
+          <Box
+            key="horizontal-arrow"
+            sx={{
+              position: 'absolute',
+              left: '50%',
+              top: '20%',
+              transform: 'translateX(-50%)',
+              fontSize: '2rem',
+              color: 'warning.main',
+              fontWeight: 'bold',
+              textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+              animation: 'pulse 1.5s infinite'
+            }}
+          >
+            {arrow}
+          </Box>
+        );
+      }
+
+      if (Math.abs(alignmentStatus.translation.y) > 50) {
+        const direction = alignmentStatus.translation.y > 0 ? 'up' : 'down';
+        const arrow = direction === 'up' ? '▲▲▲' : '▼▼▼';
+        indicators.push(
+          <Box
+            key="vertical-arrow"
+            sx={{
+              position: 'absolute',
+              left: '80%',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: '2rem',
+              color: 'warning.main',
+              fontWeight: 'bold',
+              textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+              animation: 'pulse 1.5s infinite'
+            }}
+          >
+            {arrow}
+          </Box>
+        );
+      }
+
+      // Rotation indicator
+      if (Math.abs(alignmentStatus.rotation) > 10) {
+        const rotateIcon = alignmentStatus.rotation > 0 ? '↺' : '↻';
+        indicators.push(
+          <Box
+            key="rotation-indicator"
+            sx={{
+              position: 'absolute',
+              left: '50%',
+              top: '80%',
+              transform: 'translateX(-50%)',
+              fontSize: '3rem',
+              color: 'info.main',
+              fontWeight: 'bold',
+              textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+              animation: 'spin 2s linear infinite'
+            }}
+          >
+            {rotateIcon}
+          </Box>
+        );
+      }
+
+      // Scale indicator
+      if (Math.abs(alignmentStatus.scale - 1) > 0.2) {
+        const scaleIcon = alignmentStatus.scale > 1 ? '🔍➖' : '🔍➕';
+        const instruction = alignmentStatus.scale > 1 ? 'MOVE BACK' : 'MOVE CLOSER';
+        indicators.push(
+          <Box
+            key="scale-indicator"
+            sx={{
+              position: 'absolute',
+              left: '50%',
+              bottom: '20%',
+              transform: 'translateX(-50%)',
+              textAlign: 'center',
+              color: 'secondary.main',
+              fontWeight: 'bold',
+              textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+              animation: 'bounce 1s infinite'
+            }}
+          >
+            <Box sx={{ fontSize: '2rem' }}>{scaleIcon}</Box>
+            <Box sx={{ fontSize: '1rem' }}>{instruction}</Box>
+          </Box>
+        );
+      }
+
+      return indicators;
+    };
+
     return (
       <Box
         ref={overlayRef}
@@ -256,77 +369,202 @@ export default function QRTrackerOverlay({
           width: '100%',
           height: '100%',
           pointerEvents: 'none',
-          zIndex: 10
+          zIndex: 10,
+          '& @keyframes pulse': {
+            '0%, 100%': { opacity: 1 },
+            '50%': { opacity: 0.5 }
+          },
+          '& @keyframes spin': {
+            '0%': { transform: 'translateX(-50%) rotate(0deg)' },
+            '100%': { transform: 'translateX(-50%) rotate(360deg)' }
+          },
+          '& @keyframes bounce': {
+            '0%, 20%, 50%, 80%, 100%': { transform: 'translateX(-50%) translateY(0)' },
+            '40%': { transform: 'translateX(-50%) translateY(-10px)' },
+            '60%': { transform: 'translateX(-50%) translateY(-5px)' }
+          }
         }}
       >
-        {/* Detected tracker indicators */}
-        {detectedTrackers.map((tracker) => (
+        {/* Target positions (ghost indicators where QR codes should be) */}
+        {Object.entries(targetPositions).map(([position, targetPos]) => {
+          const isDetected = detectedTrackers.some(t => t.position === position);
+          const tracker = detectedTrackers.find(t => t.position === position);
+          
+          return (
+            <Box
+              key={`target-${position}`}
+              sx={{
+                position: 'absolute',
+                left: `${(targetPos.x / canvasWidth) * 100}%`,
+                top: `${(targetPos.y / canvasHeight) * 100}%`,
+                transform: 'translate(-50%, -50%)',
+                width: 60,
+                height: 60,
+                border: isDetected ? '3px solid' : '3px dashed',
+                borderColor: isDetected ? 'success.main' : 'warning.main',
+                borderRadius: '12px',
+                bgcolor: isDetected ? 'rgba(76, 175, 80, 0.2)' : 'rgba(255, 152, 0, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                color: isDetected ? 'success.main' : 'warning.main',
+                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                animation: !isDetected ? 'pulse 2s infinite' : 'none'
+              }}
+            >
+              {position === 'topLeft' && (isDetected ? '✓ TL' : 'TL')}
+              {position === 'topRight' && (isDetected ? '✓ TR' : 'TR')}
+              {position === 'bottomLeft' && (isDetected ? '✓ BL' : 'BL')}
+            </Box>
+          );
+        })}
+
+        {/* Connection lines between detected trackers */}
+        {detectedTrackers.length >= 2 && (
+          <svg
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none'
+            }}
+          >
+            {detectedTrackers.length >= 2 && (() => {
+              const topLeft = detectedTrackers.find(t => t.position === 'topLeft');
+              const topRight = detectedTrackers.find(t => t.position === 'topRight');
+              const bottomLeft = detectedTrackers.find(t => t.position === 'bottomLeft');
+              
+              const lines = [];
+              
+              if (topLeft && topRight) {
+                lines.push(
+                  <line
+                    key="top-line"
+                    x1={`${(topLeft.center.x / canvasWidth) * 100}%`}
+                    y1={`${(topLeft.center.y / canvasHeight) * 100}%`}
+                    x2={`${(topRight.center.x / canvasWidth) * 100}%`}
+                    y2={`${(topRight.center.y / canvasHeight) * 100}%`}
+                    stroke="#4CAF50"
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                  />
+                );
+              }
+              
+              if (topLeft && bottomLeft) {
+                lines.push(
+                  <line
+                    key="left-line"
+                    x1={`${(topLeft.center.x / canvasWidth) * 100}%`}
+                    y1={`${(topLeft.center.y / canvasHeight) * 100}%`}
+                    x2={`${(bottomLeft.center.x / canvasWidth) * 100}%`}
+                    y2={`${(bottomLeft.center.y / canvasHeight) * 100}%`}
+                    stroke="#4CAF50"
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                  />
+                );
+              }
+              
+              if (topRight && bottomLeft && topLeft) {
+                lines.push(
+                  <line
+                    key="diagonal-line"
+                    x1={`${(topRight.center.x / canvasWidth) * 100}%`}
+                    y1={`${(topRight.center.y / canvasHeight) * 100}%`}
+                    x2={`${(bottomLeft.center.x / canvasWidth) * 100}%`}
+                    y2={`${(bottomLeft.center.y / canvasHeight) * 100}%`}
+                    stroke="#4CAF50"
+                    strokeWidth="1"
+                    strokeDasharray="3,3"
+                    opacity="0.5"
+                  />
+                );
+              }
+              
+              return lines;
+            })()}
+          </svg>
+        )}
+
+        {/* Movement indicators */}
+        {getMovementIndicators()}
+
+        {/* Center alignment indicator */}
+        <Box
+          sx={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 30,
+            height: 30,
+            border: '2px solid',
+            borderColor: alignmentStatus.isAligned ? 'success.main' : 'rgba(255,255,255,0.8)',
+            borderRadius: '50%',
+            bgcolor: alignmentStatus.isAligned ? 'rgba(76, 175, 80, 0.3)' : 'rgba(255,255,255,0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '16px',
+            color: alignmentStatus.isAligned ? 'success.main' : 'white',
+            fontWeight: 'bold'
+          }}
+        >
+          {alignmentStatus.isAligned ? '✓' : '⊕'}
+        </Box>
+
+        {/* Alignment success indicator */}
+        {alignmentStatus.isAligned && (
           <Box
-            key={tracker.id}
             sx={{
               position: 'absolute',
-              left: `${(tracker.center.x / (canvasRef.current?.width || 1)) * 100}%`,
-              top: `${(tracker.center.y / (canvasRef.current?.height || 1)) * 100}%`,
-              transform: 'translate(-50%, -50%)',
-              width: 20,
-              height: 20,
-              borderRadius: '50%',
-              bgcolor: 'success.main',
-              border: '2px solid white',
-              boxShadow: 2
+              left: '50%',
+              top: '30%',
+              transform: 'translateX(-50%)',
+              bgcolor: 'rgba(76, 175, 80, 0.9)',
+              color: 'white',
+              px: 3,
+              py: 1,
+              borderRadius: 2,
+              fontSize: '1.2rem',
+              fontWeight: 'bold',
+              textAlign: 'center',
+              animation: 'bounce 1s infinite'
             }}
-          />
-        ))}
+          >
+            🎯 PERFECTLY ALIGNED!
+            <br />
+            <span style={{ fontSize: '0.9rem' }}>Ready to capture</span>
+          </Box>
+        )}
 
-        {/* Center crosshair */}
-        <Box
-          sx={{
-            position: 'absolute',
-            left: '50%',
-            top: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: 40,
-            height: 40,
-            border: '2px solid',
-            borderColor: alignmentStatus.isAligned ? 'success.main' : 'warning.main',
-            borderRadius: '50%',
-            '&::before, &::after': {
-              content: '""',
+        {/* Missing trackers indicator */}
+        {alignmentStatus.missingTrackers.length > 0 && (
+          <Box
+            sx={{
               position: 'absolute',
-              bgcolor: 'currentColor',
-            },
-            '&::before': {
               left: '50%',
               top: '10%',
-              width: 2,
-              height: '80%',
               transform: 'translateX(-50%)',
-            },
-            '&::after': {
-              left: '10%',
-              top: '50%',
-              width: '80%',
-              height: 2,
-              transform: 'translateY(-50%)',
-            }
-          }}
-        />
-
-        {/* Target rectangle outline */}
-        <Box
-          sx={{
-            position: 'absolute',
-            left: '50%',
-            top: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '60%',
-            height: '45%',
-            border: '2px dashed',
-            borderColor: alignmentStatus.isAligned ? 'success.main' : 'info.main',
-            borderRadius: 1,
-            opacity: 0.7
-          }}
-        />
+              bgcolor: 'rgba(255, 152, 0, 0.9)',
+              color: 'white',
+              px: 2,
+              py: 1,
+              borderRadius: 1,
+              fontSize: '0.9rem',
+              fontWeight: 'bold',
+              textAlign: 'center',
+              animation: 'pulse 2s infinite'
+            }}
+          >
+            🔍 Look for: {alignmentStatus.missingTrackers.join(', ')}
+          </Box>
+        )}
       </Box>
     );
   };

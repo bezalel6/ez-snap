@@ -75,35 +75,17 @@ export default function QRTracker() {
   }, []);
 
   const getAlignmentInstructions = () => {
-    if (!alignmentStatus) return "Initializing tracker...";
+    if (!alignmentStatus) return "🎯 Initializing QR tracker detection...";
     
     if (alignmentStatus.isAligned) {
-      return "✅ Perfect alignment! You're ready to capture.";
+      return "🎉 Perfect alignment achieved! Your camera is precisely positioned.";
     }
 
-    const instructions = [];
-    
     if (alignmentStatus.missingTrackers.length > 0) {
-      instructions.push(`🔍 Need to see: ${alignmentStatus.missingTrackers.join(', ')} tracker(s)`);
-    }
-    
-    if (Math.abs(alignmentStatus.translation.x) > 50) {
-      instructions.push(`◀▶ Move camera ${alignmentStatus.translation.x > 0 ? 'left' : 'right'}`);
-    }
-    
-    if (Math.abs(alignmentStatus.translation.y) > 50) {
-      instructions.push(`▲▼ Move camera ${alignmentStatus.translation.y > 0 ? 'up' : 'down'}`);
-    }
-    
-    if (Math.abs(alignmentStatus.rotation) > 10) {
-      instructions.push(`🔄 Rotate ${alignmentStatus.rotation > 0 ? 'counter-clockwise' : 'clockwise'}`);
-    }
-    
-    if (Math.abs(alignmentStatus.scale - 1) > 0.2) {
-      instructions.push(`🔍 Move ${alignmentStatus.scale > 1 ? 'farther away' : 'closer'}`);
+      return `🔍 Position your camera to see the ${alignmentStatus.missingTrackers.join(' and ')} QR tracker(s). Follow the on-screen indicators.`;
     }
 
-    return instructions.length > 0 ? instructions.join(' • ') : "Fine-tuning alignment...";
+    return "� Follow the visual guides overlaid on your camera view to align perfectly.";
   };
 
   return (
