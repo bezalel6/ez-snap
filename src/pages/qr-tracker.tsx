@@ -18,7 +18,13 @@ import {
   Chip,
   Fab,
 } from "@mui/material";
-import { ArrowBack, QrCode, Settings, CameraAlt, Science } from "@mui/icons-material";
+import {
+  ArrowBack,
+  QrCode,
+  Settings,
+  CameraAlt,
+  Science,
+} from "@mui/icons-material";
 import Webcam from "react-webcam";
 import { useRouter } from "next/router";
 import QRTrackerOverlay from "@/components/QRTrackerOverlay";
@@ -41,8 +47,10 @@ export default function QRTracker() {
     useState<AlignmentStatus | null>(null);
   const [detectedCones, setDetectedCones] = useState<DetectedCone[]>([]);
   const [detectedTrackers, setDetectedTrackers] = useState<any[]>([]);
-  const [currentScanSession, setCurrentScanSession] = useState<ScanSession | null>(null);
-  const [processingResult, setProcessingResult] = useState<ProcessingResult | null>(null);
+  const [currentScanSession, setCurrentScanSession] =
+    useState<ScanSession | null>(null);
+  const [processingResult, setProcessingResult] =
+    useState<ProcessingResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const videoConstraints = {
@@ -51,16 +59,19 @@ export default function QRTracker() {
     facingMode: "environment",
   };
 
-  const handleAlignmentChange = useCallback((status: AlignmentStatus, trackers?: any[]) => {
-    setAlignmentStatus(status);
-    if (trackers) {
-      setDetectedTrackers(trackers);
-    }
-  }, []);
+  const handleAlignmentChange = useCallback(
+    (status: AlignmentStatus, trackers?: any[]) => {
+      setAlignmentStatus(status);
+      if (trackers) {
+        setDetectedTrackers(trackers);
+      }
+    },
+    [],
+  );
 
   const handleScanComplete = useCallback(async (session: ScanSession) => {
     setCurrentScanSession(session);
-    
+
     if (session.isComplete) {
       setIsProcessing(true);
       try {
@@ -69,7 +80,7 @@ export default function QRTracker() {
         setProcessingResult(result);
         setDetectedCones(result.cones);
       } catch (error) {
-        console.error('Failed to process scan session:', error);
+        console.error("Failed to process scan session:", error);
       } finally {
         setIsProcessing(false);
       }
@@ -169,7 +180,8 @@ export default function QRTracker() {
                 🎯 QR Tracker & Cone Detection
               </Typography>
               <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-                Use QR code trackers for precise alignment and scan magnetic cone positions with millimeter accuracy
+                Use QR code trackers for precise alignment and scan magnetic
+                cone positions with millimeter accuracy
               </Typography>
 
               <Card sx={{ maxWidth: 500, mx: "auto", mb: 4 }}>
@@ -282,9 +294,9 @@ export default function QRTracker() {
               {alignmentStatus && (
                 <Alert
                   severity={
-                    alignmentStatus.isAligned 
-                      ? "success" 
-                      : isAutoScanActive 
+                    alignmentStatus.isAligned
+                      ? "success"
+                      : isAutoScanActive
                         ? "warning"
                         : "info"
                   }
@@ -293,7 +305,11 @@ export default function QRTracker() {
                   <Typography variant="body2">
                     {getAlignmentInstructions()}
                     {isAutoScanActive && alignmentStatus.isAligned && (
-                      <span> 🤖 Auto-scan is active - move device as guided for automatic capture.</span>
+                      <span>
+                        {" "}
+                        🤖 Auto-scan is active - move device as guided for
+                        automatic capture.
+                      </span>
                     )}
                   </Typography>
                 </Alert>
@@ -307,7 +323,7 @@ export default function QRTracker() {
                   </Typography>
                   <Stack direction="row" spacing={1} flexWrap="wrap">
                     {detectedCones
-                      .filter(cone => cone.surfacePosition)
+                      .filter((cone) => cone.surfacePosition)
                       .map((cone, index) => (
                         <Chip
                           key={cone.id}
@@ -316,12 +332,16 @@ export default function QRTracker() {
                           size="small"
                           icon={<Science />}
                         />
-                      ))
-                    }
+                      ))}
                   </Stack>
-                  {detectedCones.some(cone => !cone.surfacePosition) && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      Note: Some cones don't have surface coordinates yet. Ensure QR trackers are properly aligned.
+                  {detectedCones.some((cone) => !cone.surfacePosition) && (
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mt: 1 }}
+                    >
+                      Note: Some cones don't have surface coordinates yet.
+                      Ensure QR trackers are properly aligned.
                     </Typography>
                   )}
                 </Paper>

@@ -141,7 +141,7 @@ export default function QRTrackerOverlay({
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const code = jsQR(imageData.data, imageData.width, imageData.height);
 
-    if (code && code.location) {
+    if (code?.location) {
       const trackerId = GridUtils.identifyTracker(code.data);
       if (trackerId) {
         const newTracker = GridUtils.createDetectedTracker(
@@ -172,7 +172,7 @@ export default function QRTrackerOverlay({
       return;
     }
 
-    const interval = setInterval(scanForQRCodes, 100); // Scan 10 times per second
+    const interval = setInterval(scanForQRCodes, 10); // Scan 10 times per second
     return () => clearInterval(interval);
   }, [isActive, scanForQRCodes]);
 
