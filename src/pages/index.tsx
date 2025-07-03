@@ -209,6 +209,7 @@ export default function Home() {
                 spacing={2}
                 justifyContent="center"
                 sx={{ mb: 4 }}
+                flexWrap="wrap"
               >
                 <Button
                   variant="outlined"
@@ -218,11 +219,12 @@ export default function Home() {
                   🎯 Generate QR Trackers
                 </Button>
                 <Button
-                  variant="outlined"
+                  variant="contained"
+                  color="secondary"
                   onClick={() => window.open("/qr-tracker", "_blank")}
                   sx={{ py: 1, px: 2 }}
                 >
-                  📍 QR Tracker Detection
+                  🔺 Cone Scanner & QR Tracking
                 </Button>
               </Stack>
 
