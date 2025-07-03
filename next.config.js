@@ -17,7 +17,7 @@ const config = {
     locales: ["en"],
     defaultLocale: "en",
   },
-  allowedDevOrigins:["192.168.0.121","thinkinator"]
+  allowedDevOrigins: ["192.168.0.121", "169.254.19.197","192.168.0.229","thinkinator", "*.local", "localhost", "127.0.0.1"]
 };
 
 export default config;
