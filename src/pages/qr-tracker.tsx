@@ -21,15 +21,8 @@ import { ArrowBack, QrCode, Settings, CameraAlt } from "@mui/icons-material";
 import Webcam from "react-webcam";
 import { useRouter } from "next/router";
 import QRTrackerOverlay from "@/components/QRTrackerOverlay";
-
-interface AlignmentStatus {
-  isAligned: boolean;
-  translation: { x: number; y: number };
-  rotation: number;
-  scale: number;
-  missingTrackers: string[];
-  staleTrackers: string[];
-}
+import { TrackerID, A4_DIMENSIONS } from "@/utils/config";
+import type { AlignmentStatus } from "@/utils/config";
 
 export default function QRTracker() {
   const router = useRouter();
@@ -40,18 +33,6 @@ export default function QRTracker() {
   const [isTrackerActive, setIsTrackerActive] = useState(false);
   const [alignmentStatus, setAlignmentStatus] =
     useState<AlignmentStatus | null>(null);
-
-  // Default tracker configuration for A4 page
-  const [trackerConfig] = useState({
-    topLeft: "TL_TRACKER_001",
-    topRight: "TR_TRACKER_002",
-    bottomLeft: "BL_TRACKER_003",
-    bottomRight: "BR_TRACKER_004",
-    targetRectangle: {
-      width: 595, // A4 width at 72 DPI (210mm)
-      height: 842, // A4 height at 72 DPI (297mm)
-    },
-  });
 
   const videoConstraints = {
     width: 640,
@@ -149,29 +130,29 @@ export default function QRTracker() {
               <Card sx={{ maxWidth: 500, mx: "auto", mb: 4 }}>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    A4 Page Tracker Configuration
+                    QR Tracker Grid Configuration
                   </Typography>
                   <Stack spacing={2}>
                     <Stack direction="row" justifyContent="space-between">
-                      <Typography>Top Left:</Typography>
-                      <Chip label={trackerConfig.topLeft} size="small" />
+                      <Typography>Grid Position 1:</Typography>
+                      <Chip label={TrackerID.QR_01} size="small" />
                     </Stack>
                     <Stack direction="row" justifyContent="space-between">
-                      <Typography>Top Right:</Typography>
-                      <Chip label={trackerConfig.topRight} size="small" />
+                      <Typography>Grid Position 2:</Typography>
+                      <Chip label={TrackerID.QR_02} size="small" />
                     </Stack>
                     <Stack direction="row" justifyContent="space-between">
-                      <Typography>Bottom Left:</Typography>
-                      <Chip label={trackerConfig.bottomLeft} size="small" />
+                      <Typography>Grid Position 3:</Typography>
+                      <Chip label={TrackerID.QR_03} size="small" />
                     </Stack>
                     <Stack direction="row" justifyContent="space-between">
-                      <Typography>Bottom Right:</Typography>
-                      <Chip label={trackerConfig.bottomRight} size="small" />
+                      <Typography>Grid Position 4:</Typography>
+                      <Chip label={TrackerID.QR_04} size="small" />
                     </Stack>
                     <Stack direction="row" justifyContent="space-between">
                       <Typography>A4 Page Size:</Typography>
                       <Chip
-                        label={`${trackerConfig.targetRectangle.width}×${trackerConfig.targetRectangle.height}px (210×297mm)`}
+                        label={`${A4_DIMENSIONS.PORTRAIT.width}×${A4_DIMENSIONS.PORTRAIT.height}px (210×297mm)`}
                         size="small"
                       />
                     </Stack>
@@ -278,7 +259,7 @@ export default function QRTracker() {
                   <QRTrackerOverlay
                     videoRef={videoRef as React.RefObject<HTMLVideoElement>}
                     isActive={isTrackerActive}
-                    config={trackerConfig}
+                    targetDimensions={A4_DIMENSIONS.PORTRAIT}
                     onAlignmentChange={handleAlignmentChange}
                   />
                 )}

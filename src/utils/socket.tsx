@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { type Socket } from "socket.io-client";
 import { io } from "socket.io-client";
-import type { ConnectedUser, PhotoShare } from "@/pages/types";
+import type { ConnectedUser, PhotoShare } from "@/utils/types";
 
 interface ServerMessage {
   type: "welcome" | "user-joined" | "user-left" | "server-update" | "broadcast";

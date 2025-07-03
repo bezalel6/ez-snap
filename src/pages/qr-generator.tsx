@@ -18,18 +18,23 @@ import {
 import { ArrowBack, Download, Print } from "@mui/icons-material";
 import QRCode from "qrcode";
 import { useRouter } from "next/router";
+import { TrackerID, A4_DIMENSIONS } from "@/utils/config";
 
 export default function QRGenerator() {
   const router = useRouter();
-  const [qrData, setQrData] = useState({
-    topLeft: "TL_TRACKER_001",
-    topRight: "TR_TRACKER_002",
-    bottomLeft: "BL_TRACKER_003",
+  const [qrData, setQrData] = useState<Record<TrackerID, string>>({
+    [TrackerID.QR_01]: TrackerID.QR_01,
+    [TrackerID.QR_02]: TrackerID.QR_02,
+    [TrackerID.QR_03]: TrackerID.QR_03,
+    [TrackerID.QR_04]: TrackerID.QR_04,
   });
   const [qrCodes, setQrCodes] = useState<Record<string, string>>({});
-  const [rectangleDimensions, setRectangleDimensions] = useState({
-    width: 595, // A4 width at 72 DPI
-    height: 842, // A4 height at 72 DPI (595 × √2)
+  const [rectangleDimensions, setRectangleDimensions] = useState<{
+    width: number;
+    height: number;
+  }>({
+    width: A4_DIMENSIONS.PORTRAIT.width,
+    height: A4_DIMENSIONS.PORTRAIT.height,
   });
 
   const generateQRCodes = async () => {
@@ -110,16 +115,20 @@ export default function QRGenerator() {
         const img = new Image();
         img.onload = () => {
           let x, y;
-          switch (position) {
-            case "topLeft":
+          switch (position as TrackerID) {
+            case TrackerID.QR_01:
               x = padding;
               y = padding;
               break;
-            case "topRight":
+            case TrackerID.QR_02:
               x = padding + qrSize / 2 + rectangleDimensions.width;
               y = padding;
               break;
-            case "bottomLeft":
+            case TrackerID.QR_03:
+              x = padding + qrSize / 2 + rectangleDimensions.width;
+              y = padding + qrSize / 2 + rectangleDimensions.height;
+              break;
+            case TrackerID.QR_04:
               x = padding;
               y = padding + qrSize / 2 + rectangleDimensions.height;
               break;
@@ -156,9 +165,11 @@ export default function QRGenerator() {
     // Add instructions centered below title
     ctx.font = "14px Arial";
     const isA4Portrait =
-      rectangleDimensions.width === 595 && rectangleDimensions.height === 842;
+      rectangleDimensions.width === A4_DIMENSIONS.PORTRAIT.width &&
+      rectangleDimensions.height === A4_DIMENSIONS.PORTRAIT.height;
     const isA4Landscape =
-      rectangleDimensions.width === 842 && rectangleDimensions.height === 595;
+      rectangleDimensions.width === A4_DIMENSIONS.LANDSCAPE.width &&
+      rectangleDimensions.height === A4_DIMENSIONS.LANDSCAPE.height;
 
     const instructions = [
       `Size: ${rectangleDimensions.width}×${rectangleDimensions.height}px`,
@@ -188,7 +199,7 @@ export default function QRGenerator() {
   };
 
   useEffect(() => {
-    generateQRCodes();
+    void generateQRCodes();
   }, [qrData]);
 
   return (
@@ -244,34 +255,45 @@ export default function QRGenerator() {
 
                 <Stack spacing={2}>
                   <TextField
-                    label="Top Left Tracker ID"
-                    value={qrData.topLeft}
+                    label={TrackerID.QR_01}
+                    value={qrData[TrackerID.QR_01]}
                     onChange={(e) =>
                       setQrData((prev) => ({
                         ...prev,
-                        topLeft: e.target.value,
+                        [TrackerID.QR_01]: e.target.value,
                       }))
                     }
                     fullWidth
                   />
                   <TextField
-                    label="Top Right Tracker ID"
-                    value={qrData.topRight}
+                    label={TrackerID.QR_02}
+                    value={qrData[TrackerID.QR_02]}
                     onChange={(e) =>
                       setQrData((prev) => ({
                         ...prev,
-                        topRight: e.target.value,
+                        [TrackerID.QR_02]: e.target.value,
                       }))
                     }
                     fullWidth
                   />
                   <TextField
-                    label="Bottom Left Tracker ID"
-                    value={qrData.bottomLeft}
+                    label={TrackerID.QR_03}
+                    value={qrData[TrackerID.QR_03]}
                     onChange={(e) =>
                       setQrData((prev) => ({
                         ...prev,
-                        bottomLeft: e.target.value,
+                        [TrackerID.QR_03]: e.target.value,
+                      }))
+                    }
+                    fullWidth
+                  />
+                  <TextField
+                    label={TrackerID.QR_04}
+                    value={qrData[TrackerID.QR_04]}
+                    onChange={(e) =>
+                      setQrData((prev) => ({
+                        ...prev,
+                        [TrackerID.QR_04]: e.target.value,
                       }))
                     }
                     fullWidth
@@ -287,13 +309,18 @@ export default function QRGenerator() {
                     <Button
                       size="small"
                       variant={
-                        rectangleDimensions.width === 595 &&
-                        rectangleDimensions.height === 842
+                        rectangleDimensions.width ===
+                          A4_DIMENSIONS.PORTRAIT.width &&
+                        rectangleDimensions.height ===
+                          A4_DIMENSIONS.PORTRAIT.height
                           ? "contained"
                           : "outlined"
                       }
                       onClick={() =>
-                        setRectangleDimensions({ width: 595, height: 842 })
+                        setRectangleDimensions({
+                          width: A4_DIMENSIONS.PORTRAIT.width,
+                          height: A4_DIMENSIONS.PORTRAIT.height,
+                        })
                       }
                     >
                       A4 Portrait
@@ -301,13 +328,18 @@ export default function QRGenerator() {
                     <Button
                       size="small"
                       variant={
-                        rectangleDimensions.width === 842 &&
-                        rectangleDimensions.height === 595
+                        rectangleDimensions.width ===
+                          A4_DIMENSIONS.LANDSCAPE.width &&
+                        rectangleDimensions.height ===
+                          A4_DIMENSIONS.LANDSCAPE.height
                           ? "contained"
                           : "outlined"
                       }
                       onClick={() =>
-                        setRectangleDimensions({ width: 842, height: 595 })
+                        setRectangleDimensions({
+                          width: A4_DIMENSIONS.LANDSCAPE.width,
+                          height: A4_DIMENSIONS.LANDSCAPE.height,
+                        })
                       }
                     >
                       A4 Landscape
@@ -338,7 +370,7 @@ export default function QRGenerator() {
                       }))
                     }
                     fullWidth
-                    helperText={`Current ratio: ${(rectangleDimensions.width / rectangleDimensions.height).toFixed(3)} ${rectangleDimensions.width === 595 && rectangleDimensions.height === 842 ? "(Perfect A4 Portrait!)" : rectangleDimensions.width === 842 && rectangleDimensions.height === 595 ? "(Perfect A4 Landscape!)" : ""}`}
+                    helperText={`Current ratio: ${(rectangleDimensions.width / rectangleDimensions.height).toFixed(3)} ${rectangleDimensions.width === A4_DIMENSIONS.PORTRAIT.width && rectangleDimensions.height === A4_DIMENSIONS.PORTRAIT.height ? "(Perfect A4 Portrait!)" : rectangleDimensions.width === A4_DIMENSIONS.LANDSCAPE.width && rectangleDimensions.height === A4_DIMENSIONS.LANDSCAPE.height ? "(Perfect A4 Landscape!)" : ""}`}
                   />
                 </Stack>
 

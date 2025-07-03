@@ -30,7 +30,11 @@ import {
 } from "@mui/icons-material";
 import Webcam from "react-webcam";
 import { useSocket } from "@/utils/socket";
-import type { CapturedImage, FilterOptions, ConnectedUser } from "./types";
+import type {
+  CapturedImage,
+  FilterOptions,
+  ConnectedUser,
+} from "../utils/types";
 
 export default function Home() {
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -183,7 +187,12 @@ export default function Home() {
                 Capture • Process • Preview
               </Typography>
 
-              <Stack direction="row" spacing={2} justifyContent="center" sx={{ mb: 4 }}>
+              <Stack
+                direction="row"
+                spacing={2}
+                justifyContent="center"
+                sx={{ mb: 4 }}
+              >
                 <Button
                   variant="contained"
                   size="large"
@@ -195,17 +204,22 @@ export default function Home() {
                 </Button>
               </Stack>
 
-              <Stack direction="row" spacing={2} justifyContent="center" sx={{ mb: 4 }}>
+              <Stack
+                direction="row"
+                spacing={2}
+                justifyContent="center"
+                sx={{ mb: 4 }}
+              >
                 <Button
                   variant="outlined"
-                  onClick={() => window.open('/qr-generator', '_blank')}
+                  onClick={() => window.open("/qr-generator", "_blank")}
                   sx={{ py: 1, px: 2 }}
                 >
                   🎯 Generate QR Trackers
                 </Button>
                 <Button
                   variant="outlined"
-                  onClick={() => window.open('/qr-tracker', '_blank')}
+                  onClick={() => window.open("/qr-tracker", "_blank")}
                   sx={{ py: 1, px: 2 }}
                 >
                   📍 QR Tracker Detection

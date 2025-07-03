@@ -1,56 +1,29 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Box } from "@mui/material";
 import jsQR from "jsqr";
-
-interface QRCode {
-  data: string;
-  location: {
-    topLeftCorner: { x: number; y: number };
-    topRightCorner: { x: number; y: number };
-    bottomLeftCorner: { x: number; y: number };
-    bottomRightCorner: { x: number; y: number };
-  };
-}
-
-interface DetectedTracker {
-  id: string;
-  position: "topLeft" | "topRight" | "bottomLeft" | "bottomRight";
-  location: QRCode["location"];
-  center: { x: number; y: number };
-  lastSeen: number;
-}
-
-interface TrackerConfig {
-  topLeft: string;
-  topRight: string;
-  bottomLeft: string;
-  bottomRight: string;
-  targetRectangle: {
-    width: number;
-    height: number;
-  };
-}
-
-interface AlignmentStatus {
-  isAligned: boolean;
-  translation: { x: number; y: number };
-  rotation: number;
-  scale: number;
-  missingTrackers: string[];
-  staleTrackers: string[];
-}
+import {
+  TrackerID,
+  GridUtils,
+  A4_DIMENSIONS,
+  TRACKER_CONFIG,
+} from "@/utils/config";
+import type {
+  DetectedTracker,
+  AlignmentStatus,
+  QRCodeLocation,
+} from "@/utils/config";
 
 interface QRTrackerOverlayProps {
   videoRef: React.RefObject<HTMLVideoElement>;
   isActive: boolean;
-  config: TrackerConfig;
+  targetDimensions?: { width: number; height: number };
   onAlignmentChange?: (status: AlignmentStatus) => void;
 }
 
 export default function QRTrackerOverlay({
   videoRef,
   isActive,
-  config,
+  targetDimensions = A4_DIMENSIONS.PORTRAIT,
   onAlignmentChange,
 }: QRTrackerOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -63,177 +36,71 @@ export default function QRTrackerOverlay({
     translation: { x: 0, y: 0 },
     rotation: 0,
     scale: 1,
-    missingTrackers: ["topLeft", "topRight", "bottomLeft", "bottomRight"],
+    missingTrackers: GridUtils.getAllTrackers(),
     staleTrackers: [],
+    detectedCount: 0,
   });
-
-  const calculateCenter = (location: QRCode["location"]) => {
-    const {
-      topLeftCorner,
-      topRightCorner,
-      bottomLeftCorner,
-      bottomRightCorner,
-    } = location;
-    return {
-      x:
-        (topLeftCorner.x +
-          topRightCorner.x +
-          bottomLeftCorner.x +
-          bottomRightCorner.x) /
-        4,
-      y:
-        (topLeftCorner.y +
-          topRightCorner.y +
-          bottomLeftCorner.y +
-          bottomRightCorner.y) /
-        4,
-    };
-  };
-
-  const identifyTrackerPosition = (
-    data: string,
-  ): "topLeft" | "topRight" | "bottomLeft" | "bottomRight" | null => {
-    if (data === config.topLeft) return "topLeft";
-    if (data === config.topRight) return "topRight";
-    if (data === config.bottomLeft) return "bottomLeft";
-    if (data === config.bottomRight) return "bottomRight";
-    return null;
-  };
 
   const calculateAlignment = useCallback(
     (trackers: DetectedTracker[]): AlignmentStatus => {
       const currentTime = Date.now();
-      const STALE_THRESHOLD = 2000; // 2 seconds
+      const { fresh, stale } = GridUtils.filterStaleTrackers(
+        trackers,
+        currentTime,
+      );
 
-      const foundTrackers = new Set(trackers.map((t) => t.position));
-      const staleTrackers = trackers
-        .filter((t) => currentTime - t.lastSeen > STALE_THRESHOLD)
-        .map((t) => t.position);
+      const foundTrackerIds = new Set(fresh.map((t) => t.id));
+      const allTrackers = GridUtils.getAllTrackers();
+      const missingTrackers = allTrackers.filter(
+        (id) => !foundTrackerIds.has(id),
+      );
+      const staleTrackerIds = stale.map((t) => t.id);
 
-      const missingTrackers = (
-        ["topLeft", "topRight", "bottomLeft", "bottomRight"] as const
-      ).filter((pos) => !foundTrackers.has(pos));
-
-      if (trackers.length < 3) {
+      if (!GridUtils.hasMinimumTrackers(fresh)) {
         return {
           isAligned: false,
           translation: { x: 0, y: 0 },
           rotation: 0,
           scale: 1,
           missingTrackers,
-          staleTrackers,
+          staleTrackers: staleTrackerIds,
+          detectedCount: fresh.length,
         };
       }
 
-      // Find expected positions based on target rectangle
-      const { width: targetWidth, height: targetHeight } =
-        config.targetRectangle;
-
-      // Calculate current rectangle from detected trackers
-      const topLeft = trackers.find((t) => t.position === "topLeft");
-      const topRight = trackers.find((t) => t.position === "topRight");
-      const bottomLeft = trackers.find((t) => t.position === "bottomLeft");
-      const bottomRight = trackers.find((t) => t.position === "bottomRight");
-
-      if (!topLeft) {
+      // For simplicity, use the first detected tracker as reference point
+      const referenceTracker = fresh?.[0];
+      if (!referenceTracker) {
         return {
           isAligned: false,
           translation: { x: 0, y: 0 },
           rotation: 0,
           scale: 1,
           missingTrackers,
-          staleTrackers,
+          staleTrackers: staleTrackerIds,
+          detectedCount: fresh.length,
         };
       }
 
-      let currentWidth = 0;
-      let currentHeight = 0;
-      let rotation = 0;
+      // Calculate scale based on average tracker size vs expected size
+      const averageWidth =
+        fresh.reduce((sum, t) => sum + t.dims.width, 0) / fresh.length;
+      const expectedSize = TRACKER_CONFIG.size;
+      const scale = averageWidth / expectedSize;
 
-      // Calculate dimensions and rotation based on available corners
-      if (topRight && bottomLeft && bottomRight) {
-        // All four corners detected - best case
-        currentWidth = Math.sqrt(
-          Math.pow(topRight.center.x - topLeft.center.x, 2) +
-            Math.pow(topRight.center.y - topLeft.center.y, 2),
-        );
-        currentHeight = Math.sqrt(
-          Math.pow(bottomLeft.center.x - topLeft.center.x, 2) +
-            Math.pow(bottomLeft.center.y - topLeft.center.y, 2),
-        );
-
-        // Calculate rotation from top edge
-        rotation =
-          (Math.atan2(
-            topRight.center.y - topLeft.center.y,
-            topRight.center.x - topLeft.center.x,
-          ) *
-            180) /
-          Math.PI;
-      } else if (topRight && bottomLeft) {
-        // Three corners: missing bottomRight
-        currentWidth = Math.sqrt(
-          Math.pow(topRight.center.x - topLeft.center.x, 2) +
-            Math.pow(topRight.center.y - topLeft.center.y, 2),
-        );
-        currentHeight = Math.sqrt(
-          Math.pow(bottomLeft.center.x - topLeft.center.x, 2) +
-            Math.pow(bottomLeft.center.y - topLeft.center.y, 2),
-        );
-        rotation =
-          (Math.atan2(
-            topRight.center.y - topLeft.center.y,
-            topRight.center.x - topLeft.center.x,
-          ) *
-            180) /
-          Math.PI;
-      } else if (topRight) {
-        // Two corners: topLeft and topRight
-        currentWidth = Math.sqrt(
-          Math.pow(topRight.center.x - topLeft.center.x, 2) +
-            Math.pow(topRight.center.y - topLeft.center.y, 2),
-        );
-        rotation =
-          (Math.atan2(
-            topRight.center.y - topLeft.center.y,
-            topRight.center.x - topLeft.center.x,
-          ) *
-            180) /
-          Math.PI;
-      } else if (bottomLeft) {
-        // Two corners: topLeft and bottomLeft
-        currentHeight = Math.sqrt(
-          Math.pow(bottomLeft.center.x - topLeft.center.x, 2) +
-            Math.pow(bottomLeft.center.y - topLeft.center.y, 2),
-        );
-        rotation =
-          (Math.atan2(
-            bottomLeft.center.x - topLeft.center.x,
-            bottomLeft.center.y - topLeft.center.y,
-          ) *
-            180) /
-            Math.PI -
-          90;
-      }
-
-      const scale =
-        currentWidth > 0
-          ? currentWidth / targetWidth
-          : currentHeight > 0
-            ? currentHeight / targetHeight
-            : 1;
-
-      // Calculate center offset
+      // Calculate center offset (translation)
       const canvasCenter = {
         x: (canvasRef.current?.width ?? 0) / 2,
         y: (canvasRef.current?.height ?? 0) / 2,
       };
 
-      const detectedCenter = topLeft.center;
       const translation = {
-        x: detectedCenter.x - canvasCenter.x,
-        y: detectedCenter.y - canvasCenter.y,
+        x: referenceTracker.center.x - canvasCenter.x,
+        y: referenceTracker.center.y - canvasCenter.y,
       };
+
+      // Simple rotation calculation (could be enhanced with more complex geometry)
+      const rotation = 0; // Simplified for now
 
       // Determine if aligned (within thresholds)
       const isAligned =
@@ -242,7 +109,7 @@ export default function QRTrackerOverlay({
         Math.abs(rotation) < 10 &&
         Math.abs(scale - 1) < 0.2 &&
         missingTrackers.length === 0 &&
-        staleTrackers.length === 0;
+        staleTrackerIds.length === 0;
 
       return {
         isAligned,
@@ -250,10 +117,11 @@ export default function QRTrackerOverlay({
         rotation,
         scale,
         missingTrackers,
-        staleTrackers,
+        staleTrackers: staleTrackerIds,
+        detectedCount: fresh.length,
       };
     },
-    [config],
+    [targetDimensions],
   );
 
   const scanForQRCodes = useCallback(() => {
@@ -273,32 +141,30 @@ export default function QRTrackerOverlay({
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const code = jsQR(imageData.data, imageData.width, imageData.height);
 
-    if (code) {
-      const position = identifyTrackerPosition(code.data);
-      if (position) {
-        const center = calculateCenter(code.location);
-        const tracker: DetectedTracker = {
-          id: code.data,
-          position,
-          location: code.location,
-          center,
-          lastSeen: Date.now(),
-        };
+    if (code && code.location) {
+      const trackerId = GridUtils.identifyTracker(code.data);
+      if (trackerId) {
+        const newTracker = GridUtils.createDetectedTracker(
+          trackerId,
+          code.location,
+        );
 
         setDetectedTrackers((prev) => {
-          const filtered = prev.filter((t) => t.position !== position);
-          return [...filtered, tracker];
+          // Remove any existing tracker with the same ID
+          const filtered = prev.filter((t) => t.id !== trackerId);
+          return [...filtered, newTracker];
         });
       }
     }
 
-    // Clean up old detections (remove trackers not seen for 3 seconds)
+    // Clean up old detections
     setDetectedTrackers((prev) => {
       const currentTime = Date.now();
-      const CLEANUP_THRESHOLD = 3000; // 3 seconds
-      return prev.filter((t) => currentTime - t.lastSeen < CLEANUP_THRESHOLD);
+      return prev.filter(
+        (t) => currentTime - t.lastSeen < TRACKER_CONFIG.cleanupThreshold,
+      );
     });
-  }, [isActive, videoRef, config]);
+  }, [isActive, videoRef]);
 
   useEffect(() => {
     if (!isActive) {
@@ -319,24 +185,31 @@ export default function QRTrackerOverlay({
   const renderOverlay = () => {
     if (!isActive || !canvasRef.current) return null;
 
-    const canvasWidth = canvasRef.current.width || 640;
-    const canvasHeight = canvasRef.current.height || 480;
+    const canvasWidth = canvasRef.current?.width || 640;
+    const canvasHeight = canvasRef.current?.height || 480;
 
-    // Calculate target positions for QR trackers optimized for A4 page detection
-    // A4 aspect ratio is 1:√2 (≈1:1.414), so we adjust positioning accordingly
+    // Calculate target grid positions based on A4 proportions
     const aspectRatio = canvasWidth / canvasHeight;
     const isLandscape = aspectRatio > 1;
-
-    // For A4 pages, QR codes should be positioned with proper margins
-    const marginX = isLandscape ? 0.15 : 0.18; // Adjust for A4 proportions
+    const marginX = isLandscape ? 0.15 : 0.18;
     const marginY = isLandscape ? 0.18 : 0.15;
 
-    const targetPositions = {
-      topLeft: { x: canvasWidth * marginX, y: canvasHeight * marginY },
-      topRight: { x: canvasWidth * (1 - marginX), y: canvasHeight * marginY },
-      bottomLeft: { x: canvasWidth * marginX, y: canvasHeight * (1 - marginY) },
-      bottomRight: {
+    // Grid positions for QR trackers (following the cartesian grid pattern)
+    const gridPositions = {
+      [TrackerID.QR_01]: {
+        x: canvasWidth * marginX,
+        y: canvasHeight * marginY,
+      },
+      [TrackerID.QR_02]: {
         x: canvasWidth * (1 - marginX),
+        y: canvasHeight * marginY,
+      },
+      [TrackerID.QR_03]: {
+        x: canvasWidth * (1 - marginX),
+        y: canvasHeight * (1 - marginY),
+      },
+      [TrackerID.QR_04]: {
+        x: canvasWidth * marginX,
         y: canvasHeight * (1 - marginY),
       },
     };
@@ -363,15 +236,19 @@ export default function QRTrackerOverlay({
           },
         }}
       >
-        {/* Target positions (ghost indicators where QR codes should be) */}
-        {Object.entries(targetPositions).map(([position, targetPos]) => {
-          const tracker = detectedTrackers.find((t) => t.position === position);
+        {/* Grid position indicators */}
+        {Object.entries(gridPositions).map(([trackerId, targetPos]) => {
+          const tracker = detectedTrackers.find(
+            (t) => t.id === (trackerId as TrackerID),
+          );
           const isDetected = !!tracker;
-          const isStale = tracker && Date.now() - tracker.lastSeen > 2000;
+          const isStale =
+            tracker &&
+            Date.now() - tracker.lastSeen > TRACKER_CONFIG.staleThreshold;
 
           return (
             <Box
-              key={`target-${position}`}
+              key={`target-${trackerId}`}
               sx={{
                 position: "absolute",
                 left: `${(targetPos.x / canvasWidth) * 100}%`,
@@ -405,34 +282,29 @@ export default function QRTrackerOverlay({
                     : "none",
               }}
             >
-              {position === "topLeft" &&
-                (isStale ? "⚠" : isDetected ? "✓" : "TL")}
-              {position === "topRight" &&
-                (isStale ? "⚠" : isDetected ? "✓" : "TR")}
-              {position === "bottomLeft" &&
-                (isStale ? "⚠" : isDetected ? "✓" : "BL")}
-              {position === "bottomRight" &&
-                (isStale ? "⚠" : isDetected ? "✓" : "BR")}
+              {isStale ? "⚠" : isDetected ? "✓" : trackerId}
             </Box>
           );
         })}
 
-        {/* Real-time tracker indicators - show current position and movement direction */}
+        {/* Real-time tracker indicators */}
         {detectedTrackers.map((tracker) => {
-          const targetPos = targetPositions[tracker.position];
+          const targetPos = gridPositions[tracker.id];
           const currentPos = tracker.center;
+
+          if (!targetPos) return null;
 
           // Calculate direction vector from current to target
           const dx = targetPos.x - currentPos.x;
           const dy = targetPos.y - currentPos.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
-          const isAligned = distance < 25; // Within 25px is considered aligned
+          const isAligned = distance < 25;
 
           // Calculate angle for arrow direction
           const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
 
           return (
-            <Box key={`tracker-${tracker.position}`}>
+            <Box key={`tracker-${tracker.id}`}>
               {/* Current tracker position indicator */}
               <Box
                 sx={{
@@ -459,13 +331,10 @@ export default function QRTrackerOverlay({
                   zIndex: 15,
                 }}
               >
-                {tracker.position === "topLeft" && "TL"}
-                {tracker.position === "topRight" && "TR"}
-                {tracker.position === "bottomLeft" && "BL"}
-                {tracker.position === "bottomRight" && "BR"}
+                {tracker.id}
               </Box>
 
-              {/* Movement direction arrow - only show if not aligned */}
+              {/* Movement direction arrow */}
               {!isAligned && (
                 <Box
                   sx={{
@@ -473,7 +342,7 @@ export default function QRTrackerOverlay({
                     left: `${(currentPos.x / canvasWidth) * 100}%`,
                     top: `${(currentPos.y / canvasHeight) * 100}%`,
                     transform: `translate(-50%, -50%) rotate(${angle}deg)`,
-                    width: Math.min(distance * 0.6, 80), // Arrow length based on distance, max 80px
+                    width: Math.min(distance * 0.6, 80),
                     height: 3,
                     bgcolor: "#FF9800",
                     transformOrigin: "left center",
@@ -519,7 +388,7 @@ export default function QRTrackerOverlay({
                 </Box>
               )}
 
-              {/* Connection line from current to target position */}
+              {/* Connection line */}
               {!isAligned && (
                 <svg
                   style={{
@@ -547,99 +416,6 @@ export default function QRTrackerOverlay({
             </Box>
           );
         })}
-
-        {/* Connection lines between detected trackers */}
-        {detectedTrackers.length >= 3 && (
-          <svg
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              pointerEvents: "none",
-            }}
-          >
-            {(() => {
-              const topLeft = detectedTrackers.find(
-                (t) => t.position === "topLeft",
-              );
-              const topRight = detectedTrackers.find(
-                (t) => t.position === "topRight",
-              );
-              const bottomLeft = detectedTrackers.find(
-                (t) => t.position === "bottomLeft",
-              );
-              const bottomRight = detectedTrackers.find(
-                (t) => t.position === "bottomRight",
-              );
-
-              const lines = [];
-
-              if (topLeft && topRight) {
-                lines.push(
-                  <line
-                    key="top-line"
-                    x1={`${(topLeft.center.x / canvasWidth) * 100}%`}
-                    y1={`${(topLeft.center.y / canvasHeight) * 100}%`}
-                    x2={`${(topRight.center.x / canvasWidth) * 100}%`}
-                    y2={`${(topRight.center.y / canvasHeight) * 100}%`}
-                    stroke="#4CAF50"
-                    strokeWidth="2"
-                    strokeDasharray="5,5"
-                  />,
-                );
-              }
-
-              if (topLeft && bottomLeft) {
-                lines.push(
-                  <line
-                    key="left-line"
-                    x1={`${(topLeft.center.x / canvasWidth) * 100}%`}
-                    y1={`${(topLeft.center.y / canvasHeight) * 100}%`}
-                    x2={`${(bottomLeft.center.x / canvasWidth) * 100}%`}
-                    y2={`${(bottomLeft.center.y / canvasHeight) * 100}%`}
-                    stroke="#4CAF50"
-                    strokeWidth="2"
-                    strokeDasharray="5,5"
-                  />,
-                );
-              }
-
-              if (topRight && bottomRight) {
-                lines.push(
-                  <line
-                    key="right-line"
-                    x1={`${(topRight.center.x / canvasWidth) * 100}%`}
-                    y1={`${(topRight.center.y / canvasHeight) * 100}%`}
-                    x2={`${(bottomRight.center.x / canvasWidth) * 100}%`}
-                    y2={`${(bottomRight.center.y / canvasHeight) * 100}%`}
-                    stroke="#4CAF50"
-                    strokeWidth="2"
-                    strokeDasharray="5,5"
-                  />,
-                );
-              }
-
-              if (bottomLeft && bottomRight) {
-                lines.push(
-                  <line
-                    key="bottom-line"
-                    x1={`${(bottomLeft.center.x / canvasWidth) * 100}%`}
-                    y1={`${(bottomLeft.center.y / canvasHeight) * 100}%`}
-                    x2={`${(bottomRight.center.x / canvasWidth) * 100}%`}
-                    y2={`${(bottomRight.center.y / canvasHeight) * 100}%`}
-                    stroke="#4CAF50"
-                    strokeWidth="2"
-                    strokeDasharray="5,5"
-                  />,
-                );
-              }
-
-              return lines;
-            })()}
-          </svg>
-        )}
 
         {/* Center crosshair */}
         <Box
@@ -674,7 +450,7 @@ export default function QRTrackerOverlay({
           }}
         />
 
-        {/* Top notification area - alignment status */}
+        {/* Status notifications */}
         <Box
           sx={{
             position: "absolute",
@@ -737,7 +513,7 @@ export default function QRTrackerOverlay({
               🔍 Missing: {alignmentStatus.missingTrackers.join(", ")}
               <br />
               <span style={{ fontSize: "10px" }}>
-                Detected: {detectedTrackers.length}/4
+                Detected: {alignmentStatus.detectedCount}/4
               </span>
             </Box>
           ) : (
@@ -753,12 +529,12 @@ export default function QRTrackerOverlay({
                 backdropFilter: "blur(4px)",
               }}
             >
-              🔄 Tracking... ({detectedTrackers.length}/4)
+              🔄 Tracking... ({alignmentStatus.detectedCount}/4)
             </Box>
           )}
         </Box>
 
-        {/* Bottom instruction area - movement guidance */}
+        {/* Movement guidance */}
         {!alignmentStatus.isAligned && (
           <Box
             sx={{
@@ -798,15 +574,6 @@ export default function QRTrackerOverlay({
               </Box>
             )}
 
-            {Math.abs(alignmentStatus.rotation) > 10 && (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                ↻
-                <span>
-                  Rotate {alignmentStatus.rotation > 0 ? "left" : "right"}
-                </span>
-              </Box>
-            )}
-
             {Math.abs(alignmentStatus.scale - 1) > 0.2 && (
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                 {alignmentStatus.scale > 1 ? "🔍−" : "🔍+"}
@@ -834,7 +601,6 @@ export default function QRTrackerOverlay({
       }}
     >
       <canvas ref={canvasRef} style={{ display: "none" }} />
-
       {renderOverlay()}
     </Box>
   );
