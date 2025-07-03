@@ -30,10 +30,15 @@ import { useRouter } from "next/router";
 import QRTrackerOverlay from "@/components/QRTrackerOverlay";
 import AutoCaptureOverlay from "@/components/AutoCaptureOverlay";
 import { TrackerID, A4_DIMENSIONS } from "@/utils/config";
-import type { AlignmentStatus, DetectedCone } from "@/utils/config";
+import type {
+  AlignmentStatus,
+  DetectedCone,
+  DetectedTracker,
+} from "@/utils/config";
 import type { ScanSession } from "@/utils/autoCapture";
 import { ImageProcessor } from "@/utils/imageProcessor";
 import type { ProcessingResult } from "@/utils/imageProcessor";
+import Navigation from "../components/Navigation";
 
 export default function QRTracker() {
   const router = useRouter();
@@ -46,7 +51,9 @@ export default function QRTracker() {
   const [alignmentStatus, setAlignmentStatus] =
     useState<AlignmentStatus | null>(null);
   const [detectedCones, setDetectedCones] = useState<DetectedCone[]>([]);
-  const [detectedTrackers, setDetectedTrackers] = useState<any[]>([]);
+  const [detectedTrackers, setDetectedTrackers] = useState<DetectedTracker[]>(
+    [],
+  );
   const [currentScanSession, setCurrentScanSession] =
     useState<ScanSession | null>(null);
   const [processingResult, setProcessingResult] =
@@ -60,7 +67,7 @@ export default function QRTracker() {
   };
 
   const handleAlignmentChange = useCallback(
-    (status: AlignmentStatus, trackers?: any[]) => {
+    (status: AlignmentStatus, trackers?: DetectedTracker[]) => {
       setAlignmentStatus(status);
       if (trackers) {
         setDetectedTrackers(trackers);
@@ -150,38 +157,23 @@ export default function QRTracker() {
       <Box
         sx={{ flexGrow: 1, minHeight: "100vh", bgcolor: "background.default" }}
       >
-        <AppBar position="static" elevation={0}>
-          <Toolbar>
-            <IconButton
-              edge="start"
-              color="inherit"
-              onClick={() => router.push("/")}
-              sx={{ mr: 2 }}
-            >
-              <ArrowBack />
-            </IconButton>
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              QR Tracker & Cone Detection
-            </Typography>
-            <IconButton
-              color="inherit"
-              onClick={() => router.push("/qr-generator")}
-            >
-              <QrCode />
-            </IconButton>
-          </Toolbar>
-        </AppBar>
+        <Navigation title="QR Tracker & Cone Detection" />
 
         <Container maxWidth="md" sx={{ py: 2 }}>
           {!isCameraActive ? (
-            // Welcome Screen
+            // Landing Screen with Guidance
             <Box sx={{ textAlign: "center", mt: 4 }}>
               <Typography variant="h4" gutterBottom color="primary">
                 🎯 QR Tracker & Cone Detection
               </Typography>
-              <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-                Use QR code trackers for precise alignment and scan magnetic
-                cone positions with millimeter accuracy
+              <Typography
+                variant="body1"
+                color="text.secondary"
+                sx={{ mb: 4, maxWidth: 600, mx: "auto" }}
+              >
+                Precisely align your camera with QR trackers and automatically
+                detect magnetic peg positions in real-time. Get millimeter
+                accuracy for surface measurements and object placement tracking.
               </Typography>
 
               <Card sx={{ maxWidth: 500, mx: "auto", mb: 4 }}>
@@ -340,7 +332,7 @@ export default function QRTracker() {
                       color="text.secondary"
                       sx={{ mt: 1 }}
                     >
-                      Note: Some cones don't have surface coordinates yet.
+                      Note: Some cones don&apos;t have surface coordinates yet.
                       Ensure QR trackers are properly aligned.
                     </Typography>
                   )}

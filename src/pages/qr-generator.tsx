@@ -14,11 +14,13 @@ import {
   Stack,
   Card,
   CardContent,
+  MenuItem,
 } from "@mui/material";
 import { ArrowBack, Download, Print } from "@mui/icons-material";
 import QRCode from "qrcode";
 import { useRouter } from "next/router";
 import { TrackerID, A4_DIMENSIONS } from "@/utils/config";
+import Navigation from "../components/Navigation";
 
 export default function QRGenerator() {
   const router = useRouter();
@@ -29,6 +31,11 @@ export default function QRGenerator() {
     [TrackerID.QR_04]: TrackerID.QR_04,
   });
   const [qrCodes, setQrCodes] = useState<Record<string, string>>({});
+  const [qrSize, setQrSize] = useState(200); // QR code size in pixels
+  const [qrMargin, setQrMargin] = useState(4); // Quiet zone margin
+  const [errorCorrection, setErrorCorrection] = useState<"L" | "M" | "Q" | "H">(
+    "H",
+  ); // Error correction level
   const [rectangleDimensions, setRectangleDimensions] = useState<{
     width: number;
     height: number;
@@ -43,8 +50,9 @@ export default function QRGenerator() {
 
       for (const [position, data] of Object.entries(qrData)) {
         codes[position] = await QRCode.toDataURL(data, {
-          width: 120,
-          margin: 1,
+          width: qrSize,
+          margin: qrMargin,
+          errorCorrectionLevel: errorCorrection,
           color: {
             dark: "#000000",
             light: "#FFFFFF",
@@ -64,7 +72,6 @@ export default function QRGenerator() {
     if (!ctx) return;
 
     const padding = 50;
-    const qrSize = 120;
     canvas.width = rectangleDimensions.width + qrSize + padding * 3;
     canvas.height = rectangleDimensions.height + qrSize + padding * 3;
 
@@ -200,7 +207,7 @@ export default function QRGenerator() {
 
   useEffect(() => {
     void generateQRCodes();
-  }, [qrData]);
+  }, [qrData, qrSize, qrMargin, errorCorrection]);
 
   return (
     <>
@@ -215,21 +222,7 @@ export default function QRGenerator() {
       <Box
         sx={{ flexGrow: 1, minHeight: "100vh", bgcolor: "background.default" }}
       >
-        <AppBar position="static" elevation={0}>
-          <Toolbar>
-            <IconButton
-              edge="start"
-              color="inherit"
-              onClick={() => router.push("/")}
-              sx={{ mr: 2 }}
-            >
-              <ArrowBack />
-            </IconButton>
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              QR Tracker Generator
-            </Typography>
-          </Toolbar>
-        </AppBar>
+        <Navigation title="QR Tracker Generator" />
 
         <Container maxWidth="md" sx={{ py: 3 }}>
           <Typography variant="h4" gutterBottom align="center" color="primary">
@@ -374,6 +367,71 @@ export default function QRGenerator() {
                   />
                 </Stack>
 
+                <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+                  QR Code Optimization
+                </Typography>
+
+                <Stack spacing={2}>
+                  <TextField
+                    label="QR Code Size (px)"
+                    type="number"
+                    value={qrSize}
+                    onChange={(e) => setQrSize(parseInt(e.target.value) || 200)}
+                    fullWidth
+                    helperText="Larger codes are easier for cameras to detect. Recommended: 200-300px for A4 printing"
+                  />
+                  <TextField
+                    label="Quiet Zone Margin (modules)"
+                    type="number"
+                    value={qrMargin}
+                    onChange={(e) => setQrMargin(parseInt(e.target.value) || 4)}
+                    fullWidth
+                    helperText="White border around QR code. QR spec requires minimum 4 modules. Higher = better detection"
+                  />
+                  <TextField
+                    label="Error Correction Level"
+                    select
+                    value={errorCorrection}
+                    onChange={(e) =>
+                      setErrorCorrection(
+                        e.target.value as "L" | "M" | "Q" | "H",
+                      )
+                    }
+                    fullWidth
+                    helperText="H (High) = 30% damage tolerance, best for camera detection. L = 7%, M = 15%, Q = 25%"
+                  >
+                    <MenuItem value="L">L - Low (7% recovery)</MenuItem>
+                    <MenuItem value="M">M - Medium (15% recovery)</MenuItem>
+                    <MenuItem value="Q">Q - Quartile (25% recovery)</MenuItem>
+                    <MenuItem value="H">
+                      H - High (30% recovery) ⭐ Recommended
+                    </MenuItem>
+                  </TextField>
+                </Stack>
+
+                <Box
+                  sx={{
+                    mt: 2,
+                    p: 2,
+                    bgcolor: "success.light",
+                    borderRadius: 1,
+                  }}
+                >
+                  <Typography variant="body2" color="success.dark">
+                    <strong>📷 Camera Detection Tips:</strong>
+                    <br />
+                    • Higher error correction (H) = better detection in poor
+                    lighting
+                    <br />
+                    • Larger QR codes scan faster from greater distances
+                    <br />
+                    • Minimum 4-module quiet zone prevents interference
+                    <br />
+                    • Print on white paper with dark ink for best contrast
+                    <br />• Avoid glossy surfaces that create reflections
+                  </Typography>
+                </Box>
+
                 <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
                   <Button
                     variant="contained"
@@ -428,15 +486,23 @@ export default function QRGenerator() {
                     sx={{ mt: 2, p: 2, bgcolor: "info.light", borderRadius: 1 }}
                   >
                     <Typography variant="body2" color="info.dark">
-                      <strong>A4 Usage Instructions:</strong>
+                      <strong>📋 A4 Usage Instructions:</strong>
                       <br />
                       1. Download the A4 reference sheet
                       <br />
-                      2. Print on standard A4 paper (210×297mm)
+                      2. Print on standard A4 paper (210×297mm) with high
+                      contrast
                       <br />
                       3. Cut out and position QR codes at document corners
                       <br />
-                      4. Use QR Tracker Detection for perfect alignment
+                      4. Ensure good lighting and avoid reflections/shadows
+                      <br />
+                      5. Use QR Tracker Detection for perfect alignment
+                      <br />
+                      <br />
+                      <strong>📱 Camera Tips:</strong> Position camera 30-50cm
+                      away, ensure QR codes fill at least 20% of frame width for
+                      reliable detection.
                     </Typography>
                   </Box>
                 )}

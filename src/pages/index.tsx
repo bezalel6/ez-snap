@@ -30,11 +30,12 @@ import {
 } from "@mui/icons-material";
 import Webcam from "react-webcam";
 import { useSocket } from "@/utils/socket";
-import type {
-  CapturedImage,
-  FilterOptions,
-  ConnectedUser,
+import {
+  type CapturedImage,
+  type FilterOptions,
+  type ConnectedUser,
 } from "../utils/types";
+import Navigation from "../components/Navigation";
 
 export default function Home() {
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -150,31 +151,20 @@ export default function Home() {
       <Box
         sx={{ flexGrow: 1, minHeight: "100vh", bgcolor: "background.default" }}
       >
-        <AppBar position="static" elevation={0}>
-          <Toolbar>
-            {selectedImage && (
-              <IconButton
-                edge="start"
-                color="inherit"
-                onClick={() => setSelectedImage(null)}
-                sx={{ mr: 2 }}
-              >
-                <ArrowBack />
-              </IconButton>
-            )}
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              EZ Snap
-            </Typography>
-            {selectedImage && (
+        <Navigation
+          title="EZ Snap"
+          additionalInfo={
+            selectedImage && (
               <IconButton
                 color="inherit"
                 onClick={() => setShowFilters(!showFilters)}
+                title="Toggle Filters"
               >
                 <Tune />
               </IconButton>
-            )}
-          </Toolbar>
-        </AppBar>
+            )
+          }
+        />
 
         <Container maxWidth="sm" sx={{ py: 2, px: 1 }}>
           {/* Welcome Screen */}

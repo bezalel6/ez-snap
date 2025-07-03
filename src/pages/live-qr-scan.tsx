@@ -26,7 +26,8 @@ import {
 } from "@mui/icons-material";
 import { useRouter } from "next/router";
 import Webcam from "react-webcam";
-import jsQR from "jsqr";
+import { useQRWorkerGPU } from "../utils/useQRWorkerGPU";
+import Navigation from "../components/Navigation";
 
 interface DetectedQRCode {
   id: string;
@@ -56,8 +57,27 @@ export default function LiveQRScan() {
   const [flipHorizontal, setFlipHorizontal] = useState(false);
   const [flipVertical, setFlipVertical] = useState(false);
 
+  // Performance optimization refs
   const fpsCounterRef = useRef(0);
   const lastFpsUpdate = useRef(Date.now());
+  const lastScanTime = useRef(0);
+  const targetFrameTime = useRef(1000 / 30); // Target 30 FPS
+  const imageDataCache = useRef<ImageData | null>(null);
+  const canvasContextRef = useRef<CanvasRenderingContext2D | null>(null);
+
+  // Debounced state updates for better performance
+  const [debouncedDetectedQRs, setDebouncedDetectedQRs] = useState<
+    DetectedQRCode[]
+  >([]);
+  const [debouncedScanCount, setDebouncedScanCount] = useState(0);
+  const debounceTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
+
+  // Web Worker for QR detection
+  const {
+    detectQRPatterns,
+    cleanup: workerCleanup,
+    isWorkerReady,
+  } = useQRWorkerGPU();
 
   const videoConstraints = {
     width: 640,
@@ -75,51 +95,56 @@ export default function LiveQRScan() {
     }
   }, []);
 
-  // Real QR detection using jsQR
-  const detectQRPatterns = useCallback(
-    (imageData: ImageData): DetectedQRCode | null => {
-      const qrResult = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: "dontInvert",
-      });
-
-      if (!qrResult) {
-        return null;
+  // Debounced UI update function
+  const updateDebouncedState = useCallback(
+    (qrs: DetectedQRCode[], scanCount: number) => {
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
       }
 
-      // Convert jsQR result to our DetectedQRCode interface
-      const detectedQR: DetectedQRCode = {
-        id: `qr_${qrResult.data}_${Date.now()}`,
-        data: qrResult.data,
-        location: {
-          topLeftCorner: qrResult.location.topLeftCorner,
-          topRightCorner: qrResult.location.topRightCorner,
-          bottomRightCorner: qrResult.location.bottomRightCorner,
-          bottomLeftCorner: qrResult.location.bottomLeftCorner,
-        },
-        timestamp: Date.now(),
-        confidence: 1.0, // jsQR doesn't provide confidence score
-      };
-
-      return detectedQR;
+      debounceTimeout.current = setTimeout(() => {
+        setDebouncedDetectedQRs(qrs);
+        setDebouncedScanCount(scanCount);
+      }, 50); // 50ms debounce for smooth UI updates
     },
     [],
   );
 
-  const scanForQRCodes = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current || !isScanning) {
+  // Optimized scanning loop with Web Worker and frame rate control
+  const scanForQRCodes = useCallback(async () => {
+    if (
+      !videoRef.current ||
+      !canvasRef.current ||
+      !isScanning ||
+      !isWorkerReady
+    ) {
       if (isScanning) {
-        // If scanning is active but video isn't ready, keep trying
-        animationFrameRef.current = requestAnimationFrame(scanForQRCodes);
+        animationFrameRef.current = requestAnimationFrame(scanWrapper);
       }
+      return;
+    }
+
+    const now = Date.now();
+    const timeSinceLastScan = now - lastScanTime.current;
+
+    // Frame rate limiting - skip if too soon
+    if (timeSinceLastScan < targetFrameTime.current) {
+      animationFrameRef.current = requestAnimationFrame(scanWrapper);
       return;
     }
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
+
+    // Cache canvas context
+    canvasContextRef.current ??= canvas.getContext("2d", {
+      willReadFrequently: true,
+      alpha: false,
+    });
+    const ctx = canvasContextRef.current;
 
     if (!ctx || video.readyState !== video.HAVE_ENOUGH_DATA) {
-      animationFrameRef.current = requestAnimationFrame(scanForQRCodes);
+      animationFrameRef.current = requestAnimationFrame(scanWrapper);
       return;
     }
 
@@ -130,94 +155,136 @@ export default function LiveQRScan() {
       video.videoWidth <= 0 ||
       video.videoHeight <= 0
     ) {
-      animationFrameRef.current = requestAnimationFrame(scanForQRCodes);
+      animationFrameRef.current = requestAnimationFrame(scanWrapper);
       return;
     }
 
-    // Set canvas size to match video (regardless of CSS transforms)
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Only resize canvas if dimensions changed
+    if (
+      canvas.width !== video.videoWidth ||
+      canvas.height !== video.videoHeight
+    ) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      imageDataCache.current = null; // Invalidate cache
+    }
 
-    // Save the current canvas state
+    lastScanTime.current = now;
+
+    // Optimized drawing with transforms
     ctx.save();
-
-    // Apply transforms to the canvas context to match the video display
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
 
-    // Move to center for rotation
     ctx.translate(centerX, centerY);
-
-    // Apply rotation
     if (rotation !== 0) {
       ctx.rotate((rotation * Math.PI) / 180);
     }
-
-    // Apply flips
     ctx.scale(flipHorizontal ? -1 : 1, flipVertical ? -1 : 1);
-
-    // Move back
     ctx.translate(-centerX, -centerY);
-
-    // Draw video frame to canvas with transforms
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    // Restore the canvas state before getting image data
     ctx.restore();
 
-    // Get image data for QR scanning - this should now work with the correct dimensions
+    // Get image data with error handling
     let imageData;
     try {
       imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     } catch (error) {
       console.warn("Failed to get image data, skipping frame:", error);
-      animationFrameRef.current = requestAnimationFrame(scanForQRCodes);
+      animationFrameRef.current = requestAnimationFrame(scanWrapper);
       return;
     }
 
-    // Detect QR patterns
-    const qrCode = detectQRPatterns(imageData);
+    // Detect QR patterns using Web Worker (async)
+    try {
+      const qrCode = await detectQRPatterns(imageData);
 
-    // Clear previous overlay and redraw with transforms
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Save state again for overlay drawing
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    if (rotation !== 0) {
-      ctx.rotate((rotation * Math.PI) / 180);
-    }
-    ctx.scale(flipHorizontal ? -1 : 1, flipVertical ? -1 : 1);
-    ctx.translate(-centerX, -centerY);
-
-    // Draw video frame again
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    if (qrCode) {
-      // Update detected QRs (keep only recent ones)
+      // Update detected QRs with optimized cleanup and debounced UI updates
       setDetectedQRs((prev) => {
-        const filtered = prev.filter((qr) => Date.now() - qr.timestamp < 2000);
-        const existing = filtered.find((qr) => qr.data === qrCode.data);
+        const currentTime = Date.now();
+        const maxAge = 2000; // 2 seconds
 
-        if (existing) {
-          return filtered.map((qr) => (qr.data === qrCode.data ? qrCode : qr));
-        } else {
-          setScanCount((count) => count + 1);
-          return [...filtered, qrCode];
+        // Remove stale QRs
+        const filtered = prev.filter(
+          (qr) => currentTime - qr.timestamp < maxAge,
+        );
+
+        let newQRs = filtered;
+        let newScanCount = scanCount;
+
+        if (qrCode) {
+          const existing = filtered.find((qr) => qr.data === qrCode.data);
+          if (existing) {
+            // Update existing QR with new position
+            newQRs = filtered.map((qr) =>
+              qr.data === qrCode.data ? qrCode : qr,
+            );
+          } else {
+            // Add new QR
+            newScanCount = scanCount + 1;
+            setScanCount(newScanCount);
+            newQRs = [...filtered, qrCode];
+          }
         }
+
+        // Debounced UI update
+        updateDebouncedState(newQRs, newScanCount);
+
+        return newQRs;
       });
 
-      // Draw QR code overlay
-      ctx.strokeStyle = "#00ff00";
-      ctx.lineWidth = 3;
-      ctx.fillStyle = "rgba(0, 255, 0, 0.2)";
+      // Optimized overlay drawing
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.translate(centerX, centerY);
+      if (rotation !== 0) {
+        ctx.rotate((rotation * Math.PI) / 180);
+      }
+      ctx.scale(flipHorizontal ? -1 : 1, flipVertical ? -1 : 1);
+      ctx.translate(-centerX, -centerY);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+      if (qrCode) {
+        drawQROverlay(ctx, qrCode);
+      }
+
+      // Draw minimal grid for performance
+      drawScanningGrid(ctx, canvas.width, canvas.height);
+
+      ctx.restore();
+
+      updateFPS();
+    } catch (error) {
+      console.warn("QR detection failed:", error);
+    }
+
+    animationFrameRef.current = requestAnimationFrame(scanWrapper);
+  }, [
+    isScanning,
+    isWorkerReady,
+    updateFPS,
+    detectQRPatterns,
+    rotation,
+    flipHorizontal,
+    flipVertical,
+    updateDebouncedState,
+    scanCount,
+  ]);
+
+  // Separate overlay drawing function for optimization
+  const drawQROverlay = useCallback(
+    (ctx: CanvasRenderingContext2D, qrCode: DetectedQRCode) => {
       const {
         topLeftCorner,
         topRightCorner,
         bottomRightCorner,
         bottomLeftCorner,
       } = qrCode.location;
+
+      // Draw QR bounding box
+      ctx.strokeStyle = "#00ff00";
+      ctx.lineWidth = 3;
+      ctx.fillStyle = "rgba(0, 255, 0, 0.2)";
 
       ctx.beginPath();
       ctx.moveTo(topLeftCorner.x, topLeftCorner.y);
@@ -228,84 +295,100 @@ export default function LiveQRScan() {
       ctx.fill();
       ctx.stroke();
 
-      // Draw corner markers
-      const drawCorner = (corner: { x: number; y: number }, size = 10) => {
-        ctx.fillStyle = "#ff0000";
-        ctx.fillRect(corner.x - size / 2, corner.y - size / 2, size, size);
-      };
+      // Draw corner markers (smaller for performance)
+      ctx.fillStyle = "#ff0000";
+      const cornerSize = 8;
+      [
+        topLeftCorner,
+        topRightCorner,
+        bottomRightCorner,
+        bottomLeftCorner,
+      ].forEach((corner) => {
+        ctx.fillRect(
+          corner.x - cornerSize / 2,
+          corner.y - cornerSize / 2,
+          cornerSize,
+          cornerSize,
+        );
+      });
 
-      drawCorner(topLeftCorner);
-      drawCorner(topRightCorner);
-      drawCorner(bottomRightCorner);
-      drawCorner(bottomLeftCorner);
+      // Draw QR data text (only if QR is large enough)
+      const qrWidth = Math.abs(bottomRightCorner.x - topLeftCorner.x);
+      if (qrWidth > 100) {
+        const centerX = (topLeftCorner.x + bottomRightCorner.x) / 2;
+        const centerY = (topLeftCorner.y + bottomRightCorner.y) / 2;
 
-      // Draw QR data text
-      const centerX = (topLeftCorner.x + bottomRightCorner.x) / 2;
-      const centerY = (topLeftCorner.y + bottomRightCorner.y) / 2;
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 2;
+        ctx.font = "14px Arial";
+        ctx.textAlign = "center";
 
-      ctx.fillStyle = "#ffffff";
-      ctx.strokeStyle = "#000000";
-      ctx.lineWidth = 2;
-      ctx.font = "16px Arial";
-      ctx.textAlign = "center";
+        const text =
+          qrCode.data.length > 15
+            ? qrCode.data.substring(0, 15) + "..."
+            : qrCode.data;
+        ctx.strokeText(text, centerX, centerY - 10);
+        ctx.fillText(text, centerX, centerY - 10);
+      }
+    },
+    [],
+  );
 
-      const text =
-        qrCode.data.length > 20
-          ? qrCode.data.substring(0, 20) + "..."
-          : qrCode.data;
-      ctx.strokeText(text, centerX, centerY - 10);
-      ctx.fillText(text, centerX, centerY - 10);
-    }
+  // Optimized grid drawing
+  const drawScanningGrid = useCallback(
+    (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.15)"; // Reduced opacity for performance
+      ctx.lineWidth = 1;
+      const gridSize = 100; // Larger grid for fewer lines
 
-    // Draw scanning grid overlay
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
-    ctx.lineWidth = 1;
-    const gridSize = 50;
+      // Draw fewer grid lines
+      for (let x = gridSize; x < width; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
 
-    for (let x = 0; x < canvas.width; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvas.height);
-      ctx.stroke();
-    }
+      for (let y = gridSize; y < height; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+    },
+    [],
+  );
 
-    for (let y = 0; y < canvas.height; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
-      ctx.stroke();
-    }
-
-    // Restore the canvas state
-    ctx.restore();
-
-    updateFPS();
-    animationFrameRef.current = requestAnimationFrame(scanForQRCodes);
-  }, [
-    isScanning,
-    updateFPS,
-    detectQRPatterns,
-    rotation,
-    flipHorizontal,
-    flipVertical,
-  ]);
+  // Wrapper for async scanning function
+  const scanWrapper = useCallback(() => {
+    void scanForQRCodes();
+  }, [scanForQRCodes]);
 
   const startScanning = useCallback(() => {
     setIsScanning(true);
     // Start scanning immediately and let the loop handle video readiness
-    scanForQRCodes();
-  }, [scanForQRCodes]);
+    scanWrapper();
+  }, [scanWrapper]);
 
   const stopScanning = useCallback(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = undefined;
     }
+
+    // Clean up caches and refs
+    workerCleanup();
+    imageDataCache.current = null;
+    canvasContextRef.current = null;
+    lastScanTime.current = 0;
+    fpsCounterRef.current = 0;
 
     setIsScanning(false);
     setDetectedQRs([]);
     setScanCount(0);
     setFps(0);
-  }, []);
+  }, [workerCleanup]);
 
   const toggleRotation = useCallback(() => {
     setRotation((prev) => (prev + 90) % 360);
@@ -323,8 +406,11 @@ export default function LiveQRScan() {
     setRotation(0);
     setFlipHorizontal(false);
     setFlipVertical(false);
+    // Clear caches when transforms change to prevent stale data
+    imageDataCache.current = null;
   }, []);
 
+  // Memoized transform calculation
   const getVideoTransform = useCallback(() => {
     const transforms = [];
 
@@ -343,19 +429,34 @@ export default function LiveQRScan() {
     return transforms.length > 0 ? transforms.join(" ") : "none";
   }, [rotation, flipHorizontal, flipVertical]);
 
+  // Cleanup on component unmount
   useEffect(() => {
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
+      // Clean up all caches
+      imageDataCache.current = null;
+      canvasContextRef.current = null;
     };
   }, []);
+
+  // Optimized QR cleanup with batching (handled by worker now)
+  useEffect(() => {
+    if (!isScanning) return;
+
+    const cleanupInterval = setInterval(() => {
+      workerCleanup();
+    }, 2000); // Run cleanup every 2 seconds
+
+    return () => clearInterval(cleanupInterval);
+  }, [isScanning, workerCleanup]);
 
   // Start scanning when isScanning becomes true
   useEffect(() => {
     if (isScanning && videoRef.current) {
       // Ensure we start scanning when the flag is set
-      scanForQRCodes();
+      void scanForQRCodes();
     }
   }, [isScanning, scanForQRCodes]);
 
@@ -376,27 +477,7 @@ export default function LiveQRScan() {
       <Box
         sx={{ flexGrow: 1, minHeight: "100vh", bgcolor: "background.default" }}
       >
-        <AppBar position="static" elevation={0}>
-          <Toolbar>
-            <IconButton
-              edge="start"
-              color="inherit"
-              onClick={() => router.push("/")}
-              sx={{ mr: 2 }}
-            >
-              <ArrowBack />
-            </IconButton>
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              Live QR Scanner
-            </Typography>
-            <Chip
-              label={`${fps} FPS`}
-              color={fps > 15 ? "success" : fps > 10 ? "warning" : "error"}
-              size="small"
-              sx={{ mr: 1 }}
-            />
-          </Toolbar>
-        </AppBar>
+        <Navigation title="Live QR Scanner" showFPS={true} fps={fps} />
 
         <Container maxWidth="lg" sx={{ py: 2 }}>
           {!isScanning ? (
@@ -505,13 +586,13 @@ export default function LiveQRScan() {
                 </Stack>
               </Paper>
 
-              {detectedQRs.length > 0 && (
+              {debouncedDetectedQRs.length > 0 && (
                 <Paper sx={{ p: 2, mb: 2, bgcolor: "grey.50" }}>
                   <Typography variant="h6" gutterBottom>
                     📋 Detected QR Codes
                   </Typography>
                   <Stack spacing={1}>
-                    {detectedQRs.map((qr, index) => (
+                    {debouncedDetectedQRs.map((qr, index) => (
                       <Box
                         key={qr.id}
                         sx={{
@@ -674,7 +755,7 @@ export default function LiveQRScan() {
                       videoRef.current = webcamRef.current.video;
                       // If scanning is active, start the QR detection loop
                       if (isScanning && !animationFrameRef.current) {
-                        scanForQRCodes();
+                        void scanForQRCodes();
                       }
                     }
                   }}
