@@ -183,15 +183,34 @@ export default function Home() {
                 Capture • Process • Preview
               </Typography>
 
-              <Button
-                variant="contained"
-                size="large"
-                startIcon={<CameraAlt />}
-                onClick={() => setIsCameraActive(true)}
-                sx={{ mb: 4, py: 1.5, px: 3 }}
-              >
-                Start Camera
-              </Button>
+              <Stack direction="row" spacing={2} justifyContent="center" sx={{ mb: 4 }}>
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<CameraAlt />}
+                  onClick={() => setIsCameraActive(true)}
+                  sx={{ py: 1.5, px: 3 }}
+                >
+                  Start Camera
+                </Button>
+              </Stack>
+
+              <Stack direction="row" spacing={2} justifyContent="center" sx={{ mb: 4 }}>
+                <Button
+                  variant="outlined"
+                  onClick={() => window.open('/qr-generator', '_blank')}
+                  sx={{ py: 1, px: 2 }}
+                >
+                  🎯 Generate QR Trackers
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => window.open('/qr-tracker', '_blank')}
+                  sx={{ py: 1, px: 2 }}
+                >
+                  📍 QR Tracker Detection
+                </Button>
+              </Stack>
 
               {/* Connected Users Section */}
               <Paper sx={{ p: 2, mb: 3 }}>
