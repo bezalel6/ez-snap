@@ -17,7 +17,17 @@ const config = {
     locales: ["en"],
     defaultLocale: "en",
   },
-  allowedDevOrigins:["192.168.0.121","thinkinator"]
+  allowedDevOrigins:["192.168.0.121","thinkinator"],
+
+  webpack: (config) => {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      path: false,
+      crypto: false,
+    };
+    return config;
+  },
 };
 
 export default config;
