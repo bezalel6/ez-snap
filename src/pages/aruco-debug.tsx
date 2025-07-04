@@ -30,6 +30,8 @@ import {
   Visibility,
   ThreeDRotation,
   Settings as SettingsIcon,
+  Pause,
+  PlayArrow,
 } from "@mui/icons-material";
 import Webcam from "react-webcam";
 import { useRouter } from "next/router";
@@ -43,7 +45,9 @@ export default function ArUcoDebug() {
 
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isDetectionActive, setIsDetectionActive] = useState(false);
+  const [isDetectionPaused, setIsDetectionPaused] = useState(false);
   const [detectedMarkers, setDetectedMarkers] = useState<DetectedArUcoMarker[]>([]);
+  const [shouldClearMarkers, setShouldClearMarkers] = useState(false);
   const [debugSettings, setDebugSettings] = useState<ArUcoDebugSettings>({
     showMarkerIds: true,
     showMarkerCorners: true,
@@ -69,13 +73,22 @@ export default function ArUcoDebug() {
     setIsCameraActive(true);
     setTimeout(() => {
       setIsDetectionActive(true);
+      setIsDetectionPaused(false);
     }, 1000);
   }, []);
 
   const stopCamera = useCallback(() => {
     setIsCameraActive(false);
     setIsDetectionActive(false);
+    setIsDetectionPaused(false);
     setDetectedMarkers([]);
+    setShouldClearMarkers(true);
+    // Reset the clear flag after a brief moment
+    setTimeout(() => setShouldClearMarkers(false), 100);
+  }, []);
+
+  const toggleDetectionPause = useCallback(() => {
+    setIsDetectionPaused(prev => !prev);
   }, []);
 
   const updateDebugSetting = useCallback(
@@ -89,10 +102,13 @@ export default function ArUcoDebug() {
   );
 
   const getDetectionStatus = () => {
-    if (!isDetectionActive) return "⏸️ Detection paused";
-    if (detectedMarkers.length === 0) return "🔍 Scanning for markers...";
-    return `✅ ${detectedMarkers.length} marker${detectedMarkers.length !== 1 ? 's' : ''} detected`;
+    if (!isDetectionActive) return "⏹️ Detection stopped - start camera to begin";
+    if (isDetectionPaused) return "⏸️ Detection paused - settings unlocked for modification";
+    if (detectedMarkers.length === 0) return "🔍 Scanning for ArUco markers...";
+    return `✅ ${detectedMarkers.length} marker${detectedMarkers.length !== 1 ? 's' : ''} detected - pause to modify settings`;
   };
+
+  const canModifySettings = !isDetectionActive || isDetectionPaused;
 
   return (
     <>
@@ -215,7 +231,9 @@ export default function ArUcoDebug() {
                   <br />
                   3. Point camera at printed markers
                   <br />
-                  4. Use debug controls to analyze detection pipeline
+                  4. Use <strong>Pause</strong> button to modify settings safely
+                  <br />
+                  5. Analyze detection results below camera view
                 </Typography>
               </Alert>
 
@@ -241,30 +259,58 @@ export default function ArUcoDebug() {
                       direction="row"
                       justifyContent="space-between"
                       alignItems="center"
+                      spacing={2}
                     >
                       <FormControlLabel
                         control={
                           <Switch
-                            checked={isDetectionActive}
-                            onChange={(e) => setIsDetectionActive(e.target.checked)}
+                            checked={isDetectionActive && !isDetectionPaused}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setIsDetectionActive(true);
+                                setIsDetectionPaused(false);
+                              } else {
+                                setIsDetectionActive(false);
+                              }
+                            }}
                           />
                         }
                         label="ArUco Detection"
                       />
-                      <Button
-                        variant="outlined"
-                        onClick={stopCamera}
-                        color="secondary"
-                      >
-                        Stop Camera
-                      </Button>
+                      
+                      <Stack direction="row" spacing={1}>
+                        {isDetectionActive && (
+                          <Button
+                            variant={isDetectionPaused ? "contained" : "outlined"}
+                            onClick={toggleDetectionPause}
+                            color={isDetectionPaused ? "success" : "warning"}
+                            size="small"
+                            startIcon={isDetectionPaused ? <PlayArrow /> : <Pause />}
+                          >
+                            {isDetectionPaused ? "Resume" : "Pause"}
+                          </Button>
+                        )}
+                        <Button
+                          variant="outlined"
+                          onClick={stopCamera}
+                          color="secondary"
+                        >
+                          Stop Camera
+                        </Button>
+                      </Stack>
                     </Stack>
                   </Paper>
 
                   {/* Detection Status */}
                   <Alert
                     severity={
-                      detectedMarkers.length > 0 ? "success" : isDetectionActive ? "info" : "warning"
+                      detectedMarkers.length > 0 && !isDetectionPaused 
+                        ? "success" 
+                        : isDetectionPaused 
+                          ? "warning"
+                          : isDetectionActive 
+                            ? "info" 
+                            : "error"
                     }
                   >
                     <Typography variant="body2">
@@ -295,29 +341,45 @@ export default function ArUcoDebug() {
                     {isDetectionActive && videoRef.current && (
                       <ArUcoDebugOverlay
                         videoRef={videoRef as React.RefObject<HTMLVideoElement>}
-                        isActive={isDetectionActive}
+                        isActive={isDetectionActive && !isDetectionPaused}
                         settings={debugSettings}
                         onMarkersDetected={handleMarkersDetected}
+                        clearMarkers={shouldClearMarkers}
                       />
                     )}
                   </Paper>
-                </Stack>
-              </Grid>
 
-              {/* Debug Controls Sidebar */}
-              <Grid size={{ xs: 12, lg: 4 }}>
-                <Stack spacing={2}>
-                  {/* Detection Results */}
+                  {/* Detection Results - Below Camera */}
                   <Paper sx={{ p: 2 }}>
                     <Typography variant="h6" gutterBottom>
                       📊 Detection Results
                     </Typography>
-                    {detectedMarkers.length > 0 ? (
-                      <Stack spacing={1}>
-                        {detectedMarkers.map((marker, index) => (
-                          <Card key={`result-${marker.id}-${index}`} variant="outlined">
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: "row",
+                        flexWrap: "wrap",
+                        gap: 1,
+                        minHeight: 80,
+                        maxHeight: 200,
+                        overflowY: "auto",
+                        alignItems: "flex-start",
+                        alignContent: "flex-start",
+                      }}
+                    >
+                      {detectedMarkers.length > 0 ? (
+                        detectedMarkers.map((marker, index) => (
+                          <Card 
+                            key={`result-${marker.id}-${index}`} 
+                            variant="outlined"
+                            sx={{ 
+                              minWidth: 180,
+                              maxWidth: 200,
+                              flex: "0 0 auto"
+                            }}
+                          >
                             <CardContent sx={{ py: 1, px: 2, "&:last-child": { pb: 1 } }}>
-                              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
                                 <Typography variant="body2" fontWeight="bold">
                                   Marker {marker.id}
                                 </Typography>
@@ -327,7 +389,7 @@ export default function ArUcoDebug() {
                                   color="success"
                                 />
                               </Stack>
-                              <Typography variant="caption" color="text.secondary">
+                              <Typography variant="caption" color="text.secondary" display="block">
                                 Center: ({Math.round(marker.center.x)}, {Math.round(marker.center.y)})
                               </Typography>
                               {marker.pose && (
@@ -337,20 +399,50 @@ export default function ArUcoDebug() {
                               )}
                             </CardContent>
                           </Card>
-                        ))}
-                      </Stack>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        No markers detected
-                      </Typography>
-                    )}
+                        ))
+                      ) : (
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "100%",
+                            height: 80,
+                            color: "text.secondary",
+                            fontStyle: "italic",
+                            bgcolor: "grey.50",
+                            borderRadius: 1,
+                            border: "1px dashed",
+                            borderColor: "grey.300",
+                          }}
+                        >
+                          🔍 No markers detected - point camera at ArUco markers
+                        </Box>
+                      )}
+                    </Box>
                   </Paper>
+                </Stack>
+              </Grid>
 
+              {/* Debug Controls Sidebar */}
+              <Grid size={{ xs: 12, lg: 4 }}>
+                <Stack spacing={2}>
                   {/* Debug Settings */}
                   <Paper sx={{ p: 0 }}>
                     <Accordion defaultExpanded>
                       <AccordionSummary expandIcon={<ExpandMore />}>
-                        <Typography variant="h6">🔧 Visual Debug Settings</Typography>
+                        <Typography variant="h6">
+                          🔧 Visual Debug Settings
+                          {!canModifySettings && (
+                            <Typography 
+                              component="span" 
+                              variant="caption" 
+                              sx={{ ml: 1, color: "warning.main" }}
+                            >
+                              (Pause detection to modify)
+                            </Typography>
+                          )}
+                        </Typography>
                       </AccordionSummary>
                       <AccordionDetails>
                         <Stack spacing={2}>
@@ -361,9 +453,11 @@ export default function ArUcoDebug() {
                                 onChange={(e) =>
                                   updateDebugSetting("showMarkerIds", e.target.checked)
                                 }
+                                disabled={!canModifySettings}
                               />
                             }
                             label="Show Marker IDs"
+                            disabled={!canModifySettings}
                           />
                           <FormControlLabel
                             control={
@@ -372,9 +466,11 @@ export default function ArUcoDebug() {
                                 onChange={(e) =>
                                   updateDebugSetting("showMarkerCorners", e.target.checked)
                                 }
+                                disabled={!canModifySettings}
                               />
                             }
                             label="Show Marker Corners"
+                            disabled={!canModifySettings}
                           />
                           <FormControlLabel
                             control={
@@ -383,9 +479,11 @@ export default function ArUcoDebug() {
                                 onChange={(e) =>
                                   updateDebugSetting("showMarkerAxes", e.target.checked)
                                 }
+                                disabled={!canModifySettings}
                               />
                             }
                             label="Show 3D Axes"
+                            disabled={!canModifySettings}
                           />
                           <FormControlLabel
                             control={
@@ -394,9 +492,11 @@ export default function ArUcoDebug() {
                                 onChange={(e) =>
                                   updateDebugSetting("showThreshold", e.target.checked)
                                 }
+                                disabled={!canModifySettings}
                               />
                             }
                             label="Show Threshold"
+                            disabled={!canModifySettings}
                           />
                         </Stack>
                       </AccordionDetails>
@@ -404,12 +504,23 @@ export default function ArUcoDebug() {
 
                     <Accordion>
                       <AccordionSummary expandIcon={<ExpandMore />}>
-                        <Typography variant="h6">⚙️ Detection Parameters</Typography>
+                        <Typography variant="h6">
+                          ⚙️ Detection Parameters
+                          {!canModifySettings && (
+                            <Typography 
+                              component="span" 
+                              variant="caption" 
+                              sx={{ ml: 1, color: "warning.main" }}
+                            >
+                              (Pause detection to modify)
+                            </Typography>
+                          )}
+                        </Typography>
                       </AccordionSummary>
                       <AccordionDetails>
                         <Stack spacing={3}>
                           <Box>
-                            <Typography gutterBottom>
+                            <Typography gutterBottom sx={{ opacity: canModifySettings ? 1 : 0.6 }}>
                               Threshold: {debugSettings.thresholdValue}
                             </Typography>
                             <Slider
@@ -419,12 +530,13 @@ export default function ArUcoDebug() {
                               }
                               min={50}
                               max={200}
+                              disabled={!canModifySettings}
                               sx={{ color: "primary.main" }}
                             />
                           </Box>
 
                           <Box>
-                            <Typography gutterBottom>
+                            <Typography gutterBottom sx={{ opacity: canModifySettings ? 1 : 0.6 }}>
                               Marker Size: {debugSettings.markerSize}mm
                             </Typography>
                             <Slider
@@ -434,6 +546,7 @@ export default function ArUcoDebug() {
                               }
                               min={10}
                               max={500}
+                              disabled={!canModifySettings}
                               sx={{ color: "primary.main" }}
                             />
                           </Box>
@@ -445,9 +558,11 @@ export default function ArUcoDebug() {
                                 onChange={(e) =>
                                   updateDebugSetting("enablePoseEstimation", e.target.checked)
                                 }
+                                disabled={!canModifySettings}
                               />
                             }
                             label="Enable Pose Estimation"
+                            disabled={!canModifySettings}
                           />
                         </Stack>
                       </AccordionDetails>

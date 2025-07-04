@@ -12,6 +12,7 @@ interface ArUcoDebugOverlayProps {
   isActive: boolean;
   settings: ArUcoDebugSettings;
   onMarkersDetected?: (markers: DetectedArUcoMarker[]) => void;
+  clearMarkers?: boolean;
 }
 
 export default function ArUcoDebugOverlay({
@@ -19,6 +20,7 @@ export default function ArUcoDebugOverlay({
   isActive,
   settings,
   onMarkersDetected,
+  clearMarkers = false,
 }: ArUcoDebugOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const debugCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -190,7 +192,6 @@ export default function ArUcoDebugOverlay({
   // Detection loop
   useEffect(() => {
     if (!isActive || !isLibraryLoaded) {
-      setDetectedMarkers([]);
       return;
     }
 
@@ -198,8 +199,22 @@ export default function ArUcoDebugOverlay({
     return () => clearInterval(interval);
   }, [isActive, isLibraryLoaded, detectMarkers]);
 
+  // Clear markers when explicitly requested
+  useEffect(() => {
+    if (clearMarkers) {
+      setDetectedMarkers([]);
+    }
+  }, [clearMarkers]);
+
+  // Clear markers only when component unmounts
+  useEffect(() => {
+    return () => {
+      setDetectedMarkers([]);
+    };
+  }, []);
+
   const renderMarkerOverlay = () => {
-    if (!isActive || !canvasRef.current || detectedMarkers.length === 0) return null;
+    if (!canvasRef.current || detectedMarkers.length === 0) return null;
 
     const canvasWidth = canvasRef.current.width || 640;
     const canvasHeight = canvasRef.current.height || 480;
