@@ -209,6 +209,7 @@ export default function Home() {
                 spacing={2}
                 justifyContent="center"
                 sx={{ mb: 4 }}
+                flexWrap="wrap"
               >
                 <Button
                   variant="outlined"
@@ -223,6 +224,13 @@ export default function Home() {
                   sx={{ py: 1, px: 2 }}
                 >
                   📍 QR Tracker Detection
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => window.open("/aruco-debug", "_blank")}
+                  sx={{ py: 1, px: 2 }}
+                >
+                  🔬 ArUco Debugger
                 </Button>
               </Stack>
 
